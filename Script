@@ -1,6 +1,5 @@
 --// Inventory-style Menu Button + Tabbed GUI (Main / AutoBuy / Teleport)
 --// Drop into a LocalScript (StarterPlayerScripts recommended)
--- loadstring(game:HttpGet("https://raw.githubusercontent.com/Logan57512/Training-your-army-Script/refs/heads/main/Script?token=GHSAT0AAAAAADSYYLY6KRC3BN443TTTV5CW2K7SB6Q"))()
 -- Only run in this place
 if game.PlaceId ~= 118561469792373 then
 	return
@@ -52,10 +51,10 @@ if not C.startThread then
 			waitUntilOn("start")
 			while _G.start do
 				StartWaveEvent:FireServer()
-				task.wait(0.02)
+				task.wait()
 				if not _G.start then break end
 				SurrenderEvent:FireServer()
-				task.wait(0.02)
+				task.wait()
 			end
 		end
 	end)
@@ -66,19 +65,19 @@ if not C.spamwaveThread then
 		while true do
 			waitUntilOn("spamwave")
 			while _G.spamwave do
-				for i = 1, 150 do
+				for i = 1, 120 do
 					if not _G.spamwave then break end
 					StartWaveEvent:FireServer()
-					task.wait(0.02)
+					task.wait()
 					if not _G.spamwave then break end
 					SurrenderEvent:FireServer()
-					task.wait(0.02)
+					task.wait()
 				end
 
 				for i = 1, 10 do
 					if not _G.spamwave then break end
 					StartWaveEvent:FireServer()
-					task.wait(0.02)
+					task.wait()
 				end
 
 				waitWhileOn(100, "spamwave")
