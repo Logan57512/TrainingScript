@@ -67,13 +67,9 @@ local function teleportToMyIsland()
 	local hrp = char:WaitForChild("HumanoidRootPart")
 
 	local islandNum = player:WaitForChild("Island").Value
-	local islandFolder = workspace.WorkArea.Islands:WaitForChild("Island"..islandNum)
+	local islandSpawn = workspace.WorkArea.Islands:WaitForChild("Island"..islandNum)
 
-	-- grab any part inside the island to stand on
-	local target = islandFolder:FindFirstChildWhichIsA("BasePart", true)
-	if not target then return end
-
-	hrp.CFrame = target.CFrame * CFrame.new(0, 5, 0)
+	hrp.CFrame = islandSpawn.CFrame * CFrame.new(0, 5, 0)
 end
 
 -- ===== Workers (switch-proof) =====
