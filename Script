@@ -44,6 +44,24 @@ local function waitWhileOn(seconds, flagName)
 	end
 end
 
+local function teleportToSanta()
+	local char = player.Character or player.CharacterAdded:Wait()
+	local hrp = char:WaitForChild("HumanoidRootPart")
+
+	local santa = workspace:WaitForChild("LeaderboardIsland"):WaitForChild("Santa")
+
+	-- Santa has no PrimaryPart, so grab any BasePart inside it (or itself if it's already a BasePart)
+	local targetPart
+	if santa:IsA("BasePart") then
+		targetPart = santa
+	else
+		targetPart = santa:FindFirstChildWhichIsA("BasePart", true) -- true = search descendants
+	end
+	if not targetPart then return end
+
+	hrp.CFrame = targetPart.CFrame * CFrame.new(0, 0, -6)
+end
+
 -- ===== Workers (switch-proof) =====
 if not C.startThread then
 	C.startThread = task.spawn(function()
@@ -65,7 +83,7 @@ if not C.spamwaveThread then
 		while true do
 			waitUntilOn("spamwave")
 			while _G.spamwave do
-				for i = 1, 120 do
+				for i = 1, 100 do
 					if not _G.spamwave then break end
 					StartWaveEvent:FireServer()
 					task.wait()
@@ -364,12 +382,62 @@ local function makeToggle(parentFrame, y, labelText, flagName)
 	return refresh
 end
 
+local function makeActionButton(parentFrame, y, labelText, buttonText, onClick)
+	local row = Instance.new("Frame")
+	row.Parent = parentFrame
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.new(1, -20, 0, 44)
+	row.Position = UDim2.new(0, 10, 0, y)
+
+	local label = Instance.new("TextLabel")
+	label.Parent = row
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.new(1, -100, 1, 0)
+	label.Font = Enum.Font.Gotham
+	label.Text = labelText
+	label.TextSize = 14
+	label.TextColor3 = Color3.fromRGB(220, 220, 220)
+	label.TextXAlignment = Enum.TextXAlignment.Left
+
+	local btn = Instance.new("TextButton")
+	btn.Parent = row
+	btn.Size = UDim2.new(0, 86, 0, 30)
+	btn.Position = UDim2.new(1, -86, 0.5, -15)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 14
+	btn.AutoButtonColor = false
+	btn.BorderSizePixel = 0
+	btn.Text = buttonText
+	btn.BackgroundColor3 = Color3.fromRGB(55, 120, 200)
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+
+	btn.MouseButton1Click:Connect(onClick)
+
+	-- Same press animation style as your toggles
+	btn.MouseButton1Down:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, 82, 0, 28),
+			Position = UDim2.new(1, -84, 0.5, -14),
+		}):Play()
+	end)
+	btn.MouseButton1Up:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, 86, 0, 30),
+			Position = UDim2.new(1, -86, 0.5, -15),
+		}):Play()
+	end)
+
+	return btn
+end
+
 -- Put toggles into tabs
 local refreshStart = makeToggle(mainPage, 10, "Start / Surrender Loop", "start")
 local refreshSpam  = makeToggle(mainPage, 62, "Spam-Wave Start",       "spamwave")
 local refreshMrs = makeToggle(buyPage, 10,  "Auto Buy: MrsClaus", "autobuyMrsclaus")
 local refreshCla = makeToggle(buyPage, 62,  "Auto Buy: Clasher",  "autobuyClasher")
 local refreshGri = makeToggle(buyPage, 114, "Auto Buy: Grinch",   "autobuyGrinch")
+makeActionButton(tpPage, 10, "Teleport to Santa", "GO", teleportToSanta)
 
 -- Tab switching
 local function styleTab(btn, active)
