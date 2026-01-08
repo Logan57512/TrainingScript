@@ -257,16 +257,27 @@ title.TextXAlignment = Enum.TextXAlignment.Left
 
 local closeBtn = Instance.new("TextButton")
 closeBtn.Parent = header
-closeBtn.Size = UDim2.new(0, 34, 0, 28)
-closeBtn.Position = UDim2.new(1, -44, 0.5, -14)
-closeBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+closeBtn.Size = UDim2.new(0, 28, 0, 28)
+closeBtn.Position = UDim2.new(1, -38, 0.5, -14)
+-- icon style (no rectangle)
+closeBtn.BackgroundTransparency = 1
 closeBtn.BorderSizePixel = 0
-closeBtn.Text = "✕"
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 16
-closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeBtn.AutoButtonColor = false
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 10)
+closeBtn.Text = "❌"
+closeBtn.Font = Enum.Font.GothamBlack
+closeBtn.TextSize = 20
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.MouseEnter:Connect(function()
+	TweenService:Create(closeBtn, TweenInfo.new(0.12), {
+		TextColor3 = Color3.fromRGB(255, 90, 90)
+	}):Play()
+end)
+
+closeBtn.MouseLeave:Connect(function()
+	TweenService:Create(closeBtn, TweenInfo.new(0.12), {
+		TextColor3 = Color3.fromRGB(255, 255, 255)
+	}):Play()
+end)
 
 -- Tab bar
 local tabBar = Instance.new("Frame")
@@ -299,9 +310,9 @@ local function makeTab(iconText)
 end
 
 -- Icons only (space-saving)
-local tabMain = makeTab("🏠")  -- Main
+local tabMain = makeTab("🔥")  -- Main
 local tabBuy  = makeTab("🛒")  -- Auto Buy
-local tabTp   = makeTab("🧭")  -- Teleport
+local tabTp   = makeTab("🚪")  -- Teleport
 
 -- Content
 local content = Instance.new("Frame")
