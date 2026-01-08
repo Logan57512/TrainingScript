@@ -62,6 +62,20 @@ local function teleportToSanta()
 	hrp.CFrame = targetPart.CFrame * CFrame.new(0, 0, -6)
 end
 
+local function teleportToMyIsland()
+	local char = player.Character or player.CharacterAdded:Wait()
+	local hrp = char:WaitForChild("HumanoidRootPart")
+
+	local islandNum = player:WaitForChild("Island").Value
+	local islandFolder = workspace.WorkArea.Islands:WaitForChild("Island"..islandNum)
+
+	-- grab any part inside the island to stand on
+	local target = islandFolder:FindFirstChildWhichIsA("BasePart", true)
+	if not target then return end
+
+	hrp.CFrame = target.CFrame * CFrame.new(0, 5, 0)
+end
+
 -- ===== Workers (switch-proof) =====
 if not C.startThread then
 	C.startThread = task.spawn(function()
@@ -446,6 +460,7 @@ local refreshMrs = makeToggle(buyPage, "Auto Buy: MrsClaus", "autobuyMrsclaus")
 local refreshCla = makeToggle(buyPage, "Auto Buy: Clasher",  "autobuyClasher")
 local refreshGri = makeToggle(buyPage, "Auto Buy: Grinch",   "autobuyGrinch")
 makeActionButton(tpPage, 10, "Teleport to Santa", "GO", teleportToSanta)
+makeActionButton(tpPage, "Teleport To My Island", "GO", teleportToMyIsland)
 
 -- Tab switching
 local function styleTab(btn, active)
