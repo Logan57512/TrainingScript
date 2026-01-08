@@ -65,12 +65,7 @@ local function teleportToMyIsland()
 	local islandName = tostring(player:WaitForChild("Island").Value)
     local islandModel = workspace.WorkArea.Islands:WaitForChild(islandName)
 	local spawn = islandModel:FindFirstChild("SpawnLocation", true)
-	if not spawn then
-		warn("SpawnLocation missing in", islandName)
-		return
-	end
-    print("6")
-	hrp.CFrame = spawn.CFrame + Vector3.new(0, 6, 0)
+	hrp.CFrame = spawn.CFrame + Vector3.new(0, 3, 0)
 end
 
 -- ===== Workers (switch-proof) =====
