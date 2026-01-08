@@ -50,10 +50,10 @@ if not C.startThread then
 			waitUntilOn("start")
 			while _G.start do
 				StartWaveEvent:FireServer()
-				task.wait(0.05)
+				task.wait(0.02)
 				if not _G.start then break end
 				SurrenderEvent:FireServer()
-				task.wait(0.05)
+				task.wait(0.02)
 			end
 		end
 	end)
@@ -67,16 +67,16 @@ if not C.spamwaveThread then
 				for i = 1, 150 do
 					if not _G.spamwave then break end
 					StartWaveEvent:FireServer()
-					task.wait(0.05)
+					task.wait(0.02)
 					if not _G.spamwave then break end
 					SurrenderEvent:FireServer()
-					task.wait(0.05)
+					task.wait(0.02)
 				end
 
 				for i = 1, 10 do
 					if not _G.spamwave then break end
 					StartWaveEvent:FireServer()
-					task.wait(0.05)
+					task.wait(0.02)
 				end
 
 				waitWhileOn(100, "spamwave")
@@ -449,6 +449,6 @@ task.spawn(function()
 		refreshStart()
 		refreshSpam()
 		refreshBuy()
-		task.wait(1)
+		task.wait(0.5)
 	end
 end)
