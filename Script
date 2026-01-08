@@ -1,6 +1,6 @@
 --// Inventory-style Menu Button + Tabbed GUI (Main / AutoBuy / Teleport)
 --// Drop into a LocalScript (StarterPlayerScripts recommended)
-
+-- loadstring(game:HttpGet("https://raw.githubusercontent.com/Logan57512/Training-your-army-Script/refs/heads/main/Script?token=GHSAT0AAAAAADSYYLY6KRC3BN443TTTV5CW2K7SB6Q"))()
 -- Only run in this place
 if game.PlaceId ~= 118561469792373 then
 	return
@@ -9,7 +9,9 @@ end
 -- Defaults (switch-proof: keep existing values if already set)
 _G.start    = (_G.start    ~= nil) and _G.start    or false
 _G.spamwave = (_G.spamwave ~= nil) and _G.spamwave or false
-_G.autobuy  = (_G.autobuy  ~= nil) and _G.autobuy  or false
+_G.autobuyMrsclaus  = (_G.autobuyMrsclaus  ~= nil) and _G.autobuyMrsclaus  or false
+_G.autobuyClasher  = (_G.autobuyClasher  ~= nil) and _G.autobuyClasher  or false
+_G.autobuyGrinch  = (_G.autobuyGrinch  ~= nil) and _G.autobuyGrinch  or false
 
 -- Prevent duplicates if you re-run
 _G.__AutoController = _G.__AutoController or {}
@@ -88,16 +90,40 @@ if not C.spamwaveThread then
 	end)
 end
 
-if not C.buyThread then
-	C.buyThread = task.spawn(function()
+if not C.buymrsclausThread then
+	C.buymrsclausThread = task.spawn(function()
 		while true do
-			waitUntilOn("autobuy")
-			while _G.autobuy do
+			waitUntilOn("autobuyMrsclaus")
+			while _G.autobuyMrsclaus do
+				if not _G.autobuyMrsclaus then break end
 				BuyTroopEvent:FireServer("MrsClausTroop")
-				task.wait(1)
-				if not _G.autobuy then break end
+				task.wait(15)
+			end
+		end
+	end)
+end
+
+if not C.buyclasherThread then
+	C.buyclasherThread = task.spawn(function()
+		while true do
+			waitUntilOn("autobuyClasher")
+			while _G.autobuyClasher do
+				if not _G.autobuyClasher then break end
 				BuyTroopEvent:FireServer("ClasherTroop")
-				task.wait(1)
+				task.wait(15)
+			end
+		end
+	end)
+end
+
+if not C.buygrinchThread then
+	C.buygrinchThread = task.spawn(function()
+		while true do
+			waitUntilOn("autobuyGrinch")
+			while _G.autobuyGrinch do
+				if not _G.autobuyGrinch then break end
+				BuyTroopEvent:FireServer("GrinchTroop")
+				task.wait(15)
 			end
 		end
 	end)
@@ -141,7 +167,7 @@ local menuBtn = Instance.new("TextButton")
 menuBtn.Parent = menuSlot
 menuBtn.Size = UDim2.new(1, 0, 1, 0)
 menuBtn.BackgroundTransparency = 1
-menuBtn.Text = "🎛" -- control icon (emoji)
+menuBtn.Text = "👾" -- control icon (emoji)
 menuBtn.Font = Enum.Font.GothamBlack
 menuBtn.TextSize = 28
 menuBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -342,7 +368,9 @@ end
 -- Put toggles into tabs
 local refreshStart = makeToggle(mainPage, 10, "Start / Surrender Loop", "start")
 local refreshSpam  = makeToggle(mainPage, 62, "Spam-Wave Start",       "spamwave")
-local refreshBuy   = makeToggle(buyPage, 10,  "Auto Buy Troops",       "autobuy")
+local refreshMrs = makeToggle(buyPage, 10,  "Auto Buy: MrsClaus", "autobuyMrsclaus")
+local refreshCla = makeToggle(buyPage, 62,  "Auto Buy: Clasher",  "autobuyClasher")
+local refreshGri = makeToggle(buyPage, 114, "Auto Buy: Grinch",   "autobuyGrinch")
 
 -- Tab switching
 local function styleTab(btn, active)
@@ -448,7 +476,9 @@ task.spawn(function()
 	while gui.Parent do
 		refreshStart()
 		refreshSpam()
-		refreshBuy()
+		refreshMrs()
+		refreshCla()
+		refreshGri()
 		task.wait(0.5)
 	end
 end)
