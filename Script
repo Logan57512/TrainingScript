@@ -1,0 +1,454 @@
+--// Inventory-style Menu Button + Tabbed GUI (Main / AutoBuy / Teleport)
+--// Drop into a LocalScript (StarterPlayerScripts recommended)
+
+-- Only run in this place
+if game.PlaceId ~= 118561469792373 then
+	return
+end
+
+-- Defaults (switch-proof: keep existing values if already set)
+_G.start    = (_G.start    ~= nil) and _G.start    or false
+_G.spamwave = (_G.spamwave ~= nil) and _G.spamwave or false
+_G.autobuy  = (_G.autobuy  ~= nil) and _G.autobuy  or false
+
+-- Prevent duplicates if you re-run
+_G.__AutoController = _G.__AutoController or {}
+local C = _G.__AutoController
+if C.__UI_LOADED then return end
+C.__UI_LOADED = true
+
+-- Services / Remotes
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RS = game:GetService("ReplicatedStorage")
+local Events = RS:WaitForChild("Events")
+local player = Players.LocalPlayer
+
+local SurrenderEvent = Events:WaitForChild("Surrender")
+local StartWaveEvent = Events:WaitForChild("StartWave")
+local BuyTroopEvent  = Events:WaitForChild("BuyTroop")
+
+-- Helpers
+local function waitUntilOn(flagName)
+	while not _G[flagName] do
+		task.wait(0.2)
+	end
+end
+
+local function waitWhileOn(seconds, flagName)
+	local t = 0
+	while t < seconds and _G[flagName] do
+		local dt = task.wait(1)
+		t += dt
+	end
+end
+
+-- ===== Workers (switch-proof) =====
+if not C.startThread then
+	C.startThread = task.spawn(function()
+		while true do
+			waitUntilOn("start")
+			while _G.start do
+				StartWaveEvent:FireServer()
+				task.wait(0.05)
+				if not _G.start then break end
+				SurrenderEvent:FireServer()
+				task.wait(0.05)
+			end
+		end
+	end)
+end
+
+if not C.spamwaveThread then
+	C.spamwaveThread = task.spawn(function()
+		while true do
+			waitUntilOn("spamwave")
+			while _G.spamwave do
+				for i = 1, 150 do
+					if not _G.spamwave then break end
+					StartWaveEvent:FireServer()
+					task.wait(0.05)
+					if not _G.spamwave then break end
+					SurrenderEvent:FireServer()
+					task.wait(0.05)
+				end
+
+				for i = 1, 10 do
+					if not _G.spamwave then break end
+					StartWaveEvent:FireServer()
+					task.wait(0.05)
+				end
+
+				waitWhileOn(100, "spamwave")
+				if _G.spamwave then
+					SurrenderEvent:FireServer()
+				end
+			end
+		end
+	end)
+end
+
+if not C.buyThread then
+	C.buyThread = task.spawn(function()
+		while true do
+			waitUntilOn("autobuy")
+			while _G.autobuy do
+				BuyTroopEvent:FireServer("MrsClausTroop")
+				task.wait(1)
+				if not _G.autobuy then break end
+				BuyTroopEvent:FireServer("ClasherTroop")
+				task.wait(1)
+			end
+		end
+	end)
+end
+
+-- ===== GUI =====
+local gui = Instance.new("ScreenGui")
+gui.Name = "AutoSwitchUI"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+-- ===== Inventory-style menu icon (bottom center) =====
+local menuSlot = Instance.new("Frame")
+menuSlot.Parent = gui
+menuSlot.Size = UDim2.new(0, 64, 0, 64)
+menuSlot.Position = UDim2.new(1, -24, 1, -18)
+menuSlot.AnchorPoint = Vector2.new(1, 1)
+menuSlot.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+menuSlot.BorderSizePixel = 0
+
+local slotCorner = Instance.new("UICorner", menuSlot)
+slotCorner.CornerRadius = UDim.new(0, 16)
+
+local slotStroke = Instance.new("UIStroke")
+slotStroke.Parent = menuSlot
+slotStroke.Thickness = 2
+slotStroke.Color = Color3.fromRGB(70, 70, 70)
+slotStroke.Transparency = 0.15
+
+local glow = Instance.new("ImageLabel")
+glow.Parent = menuSlot
+glow.BackgroundTransparency = 1
+glow.Size = UDim2.new(1, 26, 1, 26)
+glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+glow.AnchorPoint = Vector2.new(0.5, 0.5)
+glow.Image = "rbxassetid://4996891970" -- soft glow
+glow.ImageTransparency = 0.55
+glow.ImageColor3 = Color3.fromRGB(90, 180, 255)
+
+local menuBtn = Instance.new("TextButton")
+menuBtn.Parent = menuSlot
+menuBtn.Size = UDim2.new(1, 0, 1, 0)
+menuBtn.BackgroundTransparency = 1
+menuBtn.Text = "🎛" -- control icon (emoji)
+menuBtn.Font = Enum.Font.GothamBlack
+menuBtn.TextSize = 28
+menuBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+menuBtn.AutoButtonColor = false
+
+-- ===== Main Window =====
+local window = Instance.new("Frame")
+window.Parent = gui
+window.Size = UDim2.new(0, 340, 0, 240)
+window.AnchorPoint = Vector2.new(0.5, 0.5)
+window.Position = UDim2.new(0.5, 0, 0.52, 0)
+window.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+window.BorderSizePixel = 0
+window.Active = true
+window.Draggable = true
+window.Visible = false
+
+local winCorner = Instance.new("UICorner", window)
+winCorner.CornerRadius = UDim.new(0, 16)
+
+local winStroke = Instance.new("UIStroke")
+winStroke.Parent = window
+winStroke.Thickness = 2
+winStroke.Color = Color3.fromRGB(70, 70, 70)
+winStroke.Transparency = 0.2
+
+local winShadow = Instance.new("ImageLabel")
+winShadow.Parent = window
+winShadow.BackgroundTransparency = 1
+winShadow.ZIndex = 0
+winShadow.Size = UDim2.new(1, 70, 1, 70)
+winShadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+winShadow.AnchorPoint = Vector2.new(0.5, 0.5)
+winShadow.Image = "rbxassetid://4996891970"
+winShadow.ImageTransparency = 0.80
+winShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+
+-- Header
+local header = Instance.new("Frame")
+header.Parent = window
+header.Size = UDim2.new(1, 0, 0, 46)
+header.BackgroundColor3 = Color3.fromRGB(14, 14, 14)
+header.BorderSizePixel = 0
+Instance.new("UICorner", header).CornerRadius = UDim.new(0, 16)
+
+local title = Instance.new("TextLabel")
+title.Parent = header
+title.BackgroundTransparency = 1
+title.Position = UDim2.new(0, 14, 0, 0)
+title.Size = UDim2.new(1, -90, 1, 0)
+title.Font = Enum.Font.GothamBold
+title.Text = "Auto Controls"
+title.TextSize = 16
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Parent = header
+closeBtn.Size = UDim2.new(0, 34, 0, 28)
+closeBtn.Position = UDim2.new(1, -44, 0.5, -14)
+closeBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+closeBtn.BorderSizePixel = 0
+closeBtn.Text = "✕"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 16
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.AutoButtonColor = false
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 10)
+
+-- Tab bar
+local tabBar = Instance.new("Frame")
+tabBar.Parent = window
+tabBar.Position = UDim2.new(0, 0, 0, 46)
+tabBar.Size = UDim2.new(1, 0, 0, 44)
+tabBar.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
+tabBar.BorderSizePixel = 0
+
+local tabLayout = Instance.new("UIListLayout")
+tabLayout.Parent = tabBar
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+tabLayout.Padding = UDim.new(0, 10)
+
+local function makeTab(iconText)
+	local b = Instance.new("TextButton")
+	b.Parent = tabBar
+	b.Size = UDim2.new(0, 46, 0, 32)
+	b.BackgroundColor3 = Color3.fromRGB(32, 32, 32)
+	b.BorderSizePixel = 0
+	b.Text = iconText
+	b.Font = Enum.Font.GothamBold
+	b.TextSize = 16
+	b.TextColor3 = Color3.fromRGB(255, 255, 255)
+	b.AutoButtonColor = false
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 10)
+	return b
+end
+
+-- Icons only (space-saving)
+local tabMain = makeTab("🏠")  -- Main
+local tabBuy  = makeTab("🛒")  -- Auto Buy
+local tabTp   = makeTab("🧭")  -- Teleport
+
+-- Content
+local content = Instance.new("Frame")
+content.Parent = window
+content.Position = UDim2.new(0, 0, 0, 90)
+content.Size = UDim2.new(1, 0, 1, -90)
+content.BackgroundTransparency = 1
+
+local mainPage = Instance.new("Frame")
+mainPage.Parent = content
+mainPage.Size = UDim2.new(1, 0, 1, 0)
+mainPage.BackgroundTransparency = 1
+
+local buyPage = Instance.new("Frame")
+buyPage.Parent = content
+buyPage.Size = UDim2.new(1, 0, 1, 0)
+buyPage.BackgroundTransparency = 1
+buyPage.Visible = false
+
+local tpPage = Instance.new("Frame")
+tpPage.Parent = content
+tpPage.Size = UDim2.new(1, 0, 1, 0)
+tpPage.BackgroundTransparency = 1
+tpPage.Visible = false
+
+local tpHint = Instance.new("TextLabel")
+tpHint.Parent = tpPage
+tpHint.BackgroundTransparency = 1
+tpHint.Size = UDim2.new(1, -20, 0, 24)
+tpHint.Position = UDim2.new(0, 10, 0, 10)
+tpHint.Font = Enum.Font.Gotham
+tpHint.Text = "Teleport tab (empty for now)"
+tpHint.TextSize = 14
+tpHint.TextColor3 = Color3.fromRGB(200, 200, 200)
+tpHint.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Toggle builder
+local function makeToggle(parentFrame, y, labelText, flagName)
+	local row = Instance.new("Frame")
+	row.Parent = parentFrame
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.new(1, -20, 0, 44)
+	row.Position = UDim2.new(0, 10, 0, y)
+
+	local label = Instance.new("TextLabel")
+	label.Parent = row
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.new(1, -100, 1, 0)
+	label.Font = Enum.Font.Gotham
+	label.Text = labelText
+	label.TextSize = 14
+	label.TextColor3 = Color3.fromRGB(220, 220, 220)
+	label.TextXAlignment = Enum.TextXAlignment.Left
+
+	local btn = Instance.new("TextButton")
+	btn.Parent = row
+	btn.Size = UDim2.new(0, 86, 0, 30)
+	btn.Position = UDim2.new(1, -86, 0.5, -15)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 14
+	btn.AutoButtonColor = false
+	btn.BorderSizePixel = 0
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+
+	local function refresh()
+		local on = _G[flagName] == true
+		btn.Text = on and "ON" or "OFF"
+		btn.BackgroundColor3 = on and Color3.fromRGB(60, 180, 90) or Color3.fromRGB(170, 50, 50)
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	end
+
+	btn.MouseButton1Click:Connect(function()
+		_G[flagName] = not _G[flagName]
+		refresh()
+	end)
+
+	-- little press animation
+	btn.MouseButton1Down:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, 82, 0, 28),
+			Position = UDim2.new(1, -84, 0.5, -14),
+		}):Play()
+	end)
+	btn.MouseButton1Up:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, 86, 0, 30),
+			Position = UDim2.new(1, -86, 0.5, -15),
+		}):Play()
+	end)
+
+	refresh()
+	return refresh
+end
+
+-- Put toggles into tabs
+local refreshStart = makeToggle(mainPage, 10, "Start / Surrender Loop", "start")
+local refreshSpam  = makeToggle(mainPage, 62, "Spam-Wave Start",       "spamwave")
+local refreshBuy   = makeToggle(buyPage, 10,  "Auto Buy Troops",       "autobuy")
+
+-- Tab switching
+local function styleTab(btn, active)
+	TweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = active and Color3.fromRGB(60, 60, 60) or Color3.fromRGB(32, 32, 32)
+	}):Play()
+end
+
+local function setTab(which)
+	mainPage.Visible = (which == "main")
+	buyPage.Visible  = (which == "buy")
+	tpPage.Visible   = (which == "tp")
+	styleTab(tabMain, which == "main")
+	styleTab(tabBuy,  which == "buy")
+	styleTab(tabTp,   which == "tp")
+end
+
+tabMain.MouseButton1Click:Connect(function() setTab("main") end)
+tabBuy.MouseButton1Click:Connect(function()  setTab("buy")  end)
+tabTp.MouseButton1Click:Connect(function()   setTab("tp")   end)
+setTab("main")
+
+-- ===== Open/Close animations =====
+local openPos  = window.Position
+local closedPos = UDim2.new(openPos.X.Scale, openPos.X.Offset, openPos.Y.Scale, openPos.Y.Offset + 60)
+
+window.Position = closedPos
+
+local function tweenMenuSlot(hovering, pressed)
+	local size = pressed and UDim2.new(0, 60, 0, 60) or (hovering and UDim2.new(0, 68, 0, 68) or UDim2.new(0, 64, 0, 64))
+	TweenService:Create(menuSlot, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = size }):Play()
+
+	local targetGlow = hovering and 0.35 or 0.55
+	TweenService:Create(glow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = targetGlow }):Play()
+
+	local strokeColor = hovering and Color3.fromRGB(120, 200, 255) or Color3.fromRGB(70, 70, 70)
+	TweenService:Create(slotStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Color = strokeColor }):Play()
+end
+
+menuBtn.MouseEnter:Connect(function() tweenMenuSlot(true, false) end)
+menuBtn.MouseLeave:Connect(function() tweenMenuSlot(false, false) end)
+menuBtn.MouseButton1Down:Connect(function() tweenMenuSlot(true, true) end)
+menuBtn.MouseButton1Up:Connect(function() tweenMenuSlot(true, false) end)
+
+local function openWindow()
+	window.Visible = true
+	window.Position = closedPos
+	window.BackgroundTransparency = 1
+	winStroke.Transparency = 1
+
+	TweenService:Create(window, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = openPos,
+		BackgroundTransparency = 0
+	}):Play()
+
+	TweenService:Create(winStroke, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = 0.2
+	}):Play()
+end
+
+local function closeWindow()
+	local posTween = TweenService:Create(window, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		Position = closedPos,
+		BackgroundTransparency = 1
+	})
+	local strokeTween = TweenService:Create(winStroke, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		Transparency = 1
+	})
+
+	posTween:Play()
+	strokeTween:Play()
+
+	posTween.Completed:Connect(function()
+		window.Visible = false
+	end)
+end
+
+local function toggleWindow()
+	if window.Visible then
+		closeWindow()
+	else
+		openWindow()
+	end
+end
+
+menuBtn.MouseButton1Click:Connect(toggleWindow)
+closeBtn.MouseButton1Click:Connect(closeWindow)
+
+-- Close button hover/press polish
+closeBtn.MouseEnter:Connect(function()
+	TweenService:Create(closeBtn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+	}):Play()
+end)
+closeBtn.MouseLeave:Connect(function()
+	TweenService:Create(closeBtn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+	}):Play()
+end)
+
+-- Keep UI synced (updates toggles even if _G changes elsewhere)
+task.spawn(function()
+	while gui.Parent do
+		refreshStart()
+		refreshSpam()
+		refreshBuy()
+		task.wait(1)
+	end
+end)
