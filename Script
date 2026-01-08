@@ -296,41 +296,61 @@ content.Position = UDim2.new(0, 0, 0, 90)
 content.Size = UDim2.new(1, 0, 1, -90)
 content.BackgroundTransparency = 1
 
-local mainPage = Instance.new("Frame")
+local mainPage = Instance.new("ScrollingFrame")
 mainPage.Parent = content
 mainPage.Size = UDim2.new(1, 0, 1, 0)
 mainPage.BackgroundTransparency = 1
+mainPage.BorderSizePixel = 0
+mainPage.ScrollBarThickness = 6
+mainPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
+mainPage.Visible = true
 
-local buyPage = Instance.new("Frame")
+local mainPad = Instance.new("UIPadding", mainPage)
+mainPad.PaddingTop = UDim.new(0, 8)
+local mainLayout = Instance.new("UIListLayout", mainPage)
+mainLayout.Padding = UDim.new(0, 10)
+mainLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local buyPage = Instance.new("ScrollingFrame")
 buyPage.Parent = content
 buyPage.Size = UDim2.new(1, 0, 1, 0)
 buyPage.BackgroundTransparency = 1
+buyPage.BorderSizePixel = 0
+buyPage.ScrollBarThickness = 6
+buyPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
 buyPage.Visible = false
 
-local tpPage = Instance.new("Frame")
+local buyPad = Instance.new("UIPadding", buyPage)
+buyPad.PaddingTop = UDim.new(0, 8)
+local buyLayout = Instance.new("UIListLayout", buyPage)
+buyLayout.Padding = UDim.new(0, 10)
+buyLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local tpPage = Instance.new("ScrollingFrame")
 tpPage.Parent = content
 tpPage.Size = UDim2.new(1, 0, 1, 0)
 tpPage.BackgroundTransparency = 1
 tpPage.Visible = false
+tpPage.BorderSizePixel = 0
+tpPage.ScrollBarThickness = 6
+tpPage.CanvasSize = UDim2.new(0, 0, 0, 0) -- will be auto later
+tpPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
-local tpHint = Instance.new("TextLabel")
-tpHint.Parent = tpPage
-tpHint.BackgroundTransparency = 1
-tpHint.Size = UDim2.new(1, -20, 0, 24)
-tpHint.Position = UDim2.new(0, 10, 0, 10)
-tpHint.Font = Enum.Font.Gotham
-tpHint.Text = "Teleport tab (empty for now)"
-tpHint.TextSize = 14
-tpHint.TextColor3 = Color3.fromRGB(200, 200, 200)
-tpHint.TextXAlignment = Enum.TextXAlignment.Left
+local pad = Instance.new("UIPadding", tpPage)
+pad.PaddingTop = UDim.new(0, 8)
+pad.PaddingLeft = UDim.new(0, 0)
+pad.PaddingRight = UDim.new(0, 0)
+local layout = Instance.new("UIListLayout", tpPage)
+layout.Padding = UDim.new(0, 10)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+
 
 -- Toggle builder
-local function makeToggle(parentFrame, y, labelText, flagName)
+local function makeToggle(parentFrame, labelText, flagName)
 	local row = Instance.new("Frame")
 	row.Parent = parentFrame
-	row.BackgroundTransparency = 1
 	row.Size = UDim2.new(1, -20, 0, 44)
-	row.Position = UDim2.new(0, 10, 0, y)
+	row.BackgroundTransparency = 1
 
 	local label = Instance.new("TextLabel")
 	label.Parent = row
@@ -356,26 +376,11 @@ local function makeToggle(parentFrame, y, labelText, flagName)
 		local on = _G[flagName] == true
 		btn.Text = on and "ON" or "OFF"
 		btn.BackgroundColor3 = on and Color3.fromRGB(60, 180, 90) or Color3.fromRGB(170, 50, 50)
-		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	end
 
 	btn.MouseButton1Click:Connect(function()
 		_G[flagName] = not _G[flagName]
 		refresh()
-	end)
-
-	-- little press animation
-	btn.MouseButton1Down:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = UDim2.new(0, 82, 0, 28),
-			Position = UDim2.new(1, -84, 0.5, -14),
-		}):Play()
-	end)
-	btn.MouseButton1Up:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = UDim2.new(0, 86, 0, 30),
-			Position = UDim2.new(1, -86, 0.5, -15),
-		}):Play()
 	end)
 
 	refresh()
@@ -432,11 +437,11 @@ local function makeActionButton(parentFrame, y, labelText, buttonText, onClick)
 end
 
 -- Put toggles into tabs
-local refreshStart = makeToggle(mainPage, 10, "Start / Surrender Loop", "start")
-local refreshSpam  = makeToggle(mainPage, 62, "Spam-Wave Start",       "spamwave")
-local refreshMrs = makeToggle(buyPage, 10,  "Auto Buy: MrsClaus", "autobuyMrsclaus")
-local refreshCla = makeToggle(buyPage, 62,  "Auto Buy: Clasher",  "autobuyClasher")
-local refreshGri = makeToggle(buyPage, 114, "Auto Buy: Grinch",   "autobuyGrinch")
+local refreshStart = makeToggle(mainPage, "Start / Surrender Loop", "start")
+local refreshSpam  = makeToggle(mainPage, "Spam-Wave Start", "spamwave")
+local refreshMrs = makeToggle(buyPage, "Auto Buy: MrsClaus", "autobuyMrsclaus")
+local refreshCla = makeToggle(buyPage, "Auto Buy: Clasher",  "autobuyClasher")
+local refreshGri = makeToggle(buyPage, "Auto Buy: Grinch",   "autobuyGrinch")
 makeActionButton(tpPage, 10, "Teleport to Santa", "GO", teleportToSanta)
 
 -- Tab switching
