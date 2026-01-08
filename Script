@@ -47,9 +47,7 @@ end
 local function teleportToSanta()
 	local char = player.Character or player.CharacterAdded:Wait()
 	local hrp = char:WaitForChild("HumanoidRootPart")
-
 	local santa = workspace:WaitForChild("LeaderboardIsland"):WaitForChild("Santa")
-
 	-- Santa has no PrimaryPart, so grab any BasePart inside it (or itself if it's already a BasePart)
 	local targetPart
 	if santa:IsA("BasePart") then
@@ -58,19 +56,23 @@ local function teleportToSanta()
 		targetPart = santa:FindFirstChildWhichIsA("BasePart", true) -- true = search descendants
 	end
 	if not targetPart then return end
-
 	hrp.CFrame = targetPart.CFrame * CFrame.new(0, 0, -6)
 end
 
 local function teleportToMyIsland()
 	local char = player.Character or player.CharacterAdded:Wait()
 	local hrp = char:WaitForChild("HumanoidRootPart")
-
-	local islandNum = player:WaitForChild("Island").Value
-	local islandSpawn = workspace.WorkArea.Islands:WaitForChild("Island"..islandNum)
-
-	hrp.CFrame = islandSpawn.CFrame * CFrame.new(0, 5, 0)
+	local islandName = tostring(player:WaitForChild("Island").Value)
+    local islandModel = workspace.WorkArea.Islands:WaitForChild(islandName)
+	local spawn = islandModel:FindFirstChild("SpawnLocation", true)
+	if not spawn then
+		warn("SpawnLocation missing in", islandName)
+		return
+	end
+    print("6")
+	hrp.CFrame = spawn.CFrame + Vector3.new(0, 6, 0)
 end
+teleportToMyIsland()
 
 -- ===== Workers (switch-proof) =====
 if not C.startThread then
