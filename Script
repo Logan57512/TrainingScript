@@ -343,14 +343,16 @@ pad.PaddingRight = UDim.new(0, 0)
 local layout = Instance.new("UIListLayout", tpPage)
 layout.Padding = UDim.new(0, 10)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
-
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 -- Toggle builder
 local function makeToggle(parentFrame, labelText, flagName)
 	local row = Instance.new("Frame")
 	row.Parent = parentFrame
-	row.Size = UDim2.new(1, -20, 0, 44)
+	row.Size = UDim2.new(0, 310, 0, 44)
 	row.BackgroundTransparency = 1
+	row.AnchorPoint = Vector2.new(0.5, 0)
+	row.Position = UDim2.new(0.5, 0, 0, 0)
 
 	local label = Instance.new("TextLabel")
 	label.Parent = row
@@ -391,8 +393,9 @@ local function makeActionButton(parentFrame, y, labelText, buttonText, onClick)
 	local row = Instance.new("Frame")
 	row.Parent = parentFrame
 	row.BackgroundTransparency = 1
-	row.Size = UDim2.new(1, -20, 0, 44)
-	row.Position = UDim2.new(0, 10, 0, y)
+	row.Size = UDim2.new(0, 310, 0, 44)
+	row.AnchorPoint = Vector2.new(0.5, 0)
+	row.Position = UDim2.new(0.5, 0, 0, 0)
 
 	local label = Instance.new("TextLabel")
 	label.Parent = row
