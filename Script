@@ -6,6 +6,7 @@ if game.PlaceId ~= 118561469792373 then
 end
 
 -- Defaults (switch-proof: keep existing values if already set)
+_G.speed = (_G.speed ~= nil) and _G.speed or true
 _G.start    = (_G.start    ~= nil) and _G.start    or false
 _G.spamwave = (_G.spamwave ~= nil) and _G.spamwave or false
 _G.autobuyMrsclaus  = (_G.autobuyMrsclaus  ~= nil) and _G.autobuyMrsclaus  or false
@@ -63,7 +64,7 @@ local function teleportToMyIsland()
 	local char = player.Character or player.CharacterAdded:Wait()
 	local hrp = char:WaitForChild("HumanoidRootPart")
 	local islandName = tostring(player:WaitForChild("Island").Value)
-    local islandModel = workspace.WorkArea.Islands:WaitForChild(islandName)
+	local islandModel = workspace.WorkArea.Islands:WaitForChild(islandName)
 	local spawn = islandModel:FindFirstChild("SpawnLocation", true)
 	hrp.CFrame = spawn.CFrame + Vector3.new(0, 3, 0)
 end
@@ -112,6 +113,27 @@ if not C.spamwaveThread then
 		end
 	end)
 end
+
+local speedRunning = false
+local function startSpeedLoop()
+	if speedRunning then return end
+	speedRunning = true
+	task.spawn(function()
+		while _G.speed do
+			local islandName = tostring(player:WaitForChild("Island").Value)
+			local island = workspace.WorkArea.Islands:FindFirstChild(islandName)
+			if island and island:FindFirstChild("Wave") then
+				local ds = island.Wave:FindFirstChild("DoubleSpeed")
+				if ds and not ds.Value then
+					Events.DoubleSpeed:FireServer()
+				end
+			end
+			task.wait(15)
+		end
+		speedRunning = false
+	end)
+end
+
 
 if not C.buymrsclausThread then
 	C.buymrsclausThread = task.spawn(function()
@@ -398,7 +420,11 @@ local function makeToggle(parentFrame, labelText, flagName)
 	btn.MouseButton1Click:Connect(function()
 		_G[flagName] = not _G[flagName]
 		refresh()
-	end)
+	
+		if flagName == "speed" and _G.speed then
+			startSpeedLoop()
+		end
+	end)	
 
 	refresh()
 	return refresh
@@ -455,6 +481,7 @@ end
 -- Put toggles into tabs
 local refreshStart = makeToggle(mainPage, "Start / Surrender Loop", "start")
 local refreshSpam  = makeToggle(mainPage, "Spam-Wave Start", "spamwave")
+local refreshSpeed = makeToggle(mainPage, "Auto 2X Speed", "speed")
 local refreshMrs = makeToggle(buyPage, "Auto Buy: MrsClaus", "autobuyMrsclaus")
 local refreshCla = makeToggle(buyPage, "Auto Buy: Clasher",  "autobuyClasher")
 local refreshGri = makeToggle(buyPage, "Auto Buy: Grinch",   "autobuyGrinch")
@@ -548,23 +575,12 @@ end
 menuBtn.MouseButton1Click:Connect(toggleWindow)
 closeBtn.MouseButton1Click:Connect(closeWindow)
 
--- Close button hover/press polish
-closeBtn.MouseEnter:Connect(function()
-	TweenService:Create(closeBtn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		BackgroundColor3 = Color3.fromRGB(55, 55, 55)
-	}):Play()
-end)
-closeBtn.MouseLeave:Connect(function()
-	TweenService:Create(closeBtn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-	}):Play()
-end)
-
 -- Keep UI synced (updates toggles even if _G changes elsewhere)
 task.spawn(function()
 	while gui.Parent do
 		refreshStart()
 		refreshSpam()
+		refreshSpeed()
 		refreshMrs()
 		refreshCla()
 		refreshGri()
