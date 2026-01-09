@@ -6,9 +6,9 @@ if game.PlaceId ~= 118561469792373 then
 end
 
 -- Defaults (switch-proof: keep existing values if already set)
+_G.speed = true
 _G.start    = (_G.start    ~= nil) and _G.start    or true
 _G.spamwave = (_G.spamwave ~= nil) and _G.spamwave or false
-_G.speed = (_G.speed ~= nil) and _G.speed or true
 _G.autobuyMrsclaus  = (_G.autobuyMrsclaus  ~= nil) and _G.autobuyMrsclaus  or false
 _G.autobuyClasher  = (_G.autobuyClasher  ~= nil) and _G.autobuyClasher  or false
 _G.autobuyGrinch  = (_G.autobuyGrinch  ~= nil) and _G.autobuyGrinch  or false
@@ -72,6 +72,28 @@ local function teleportToMyIsland()
 end
 
 -- ===== Workers (switch-proof) =====
+if _G.speed then
+	task.spawn(function()
+		for i = 1, 5 do
+			local islandName = tostring(player:WaitForChild("Island").Value)
+			local island = islandsFolder:FindFirstChild(islandName)
+			if island then
+				local wave = island:FindFirstChild("Wave")
+				if wave then
+					local ds = wave:FindFirstChild("DoubleSpeed")
+					if ds then
+						if ds.Value == true then
+							break
+						end
+						Events.DoubleSpeed:FireServer()
+					end
+				end
+			end
+			task.wait(0.5)
+		end
+	end)
+end
+
 if not C.startThread then
 	C.startThread = task.spawn(function()
 		while true do
@@ -111,28 +133,6 @@ if not C.spamwaveThread then
 				if _G.spamwave then
 					SurrenderEvent:FireServer()
 				end
-			end
-		end
-	end)
-end
-
-if not C.speedThread then
-	C.speedThread = task.spawn(function()
-		while true do
-			waitUntilOn("speed")
-			while _G.speed do
-				local islandName = tostring(player:WaitForChild("Island").Value)
-				local island = islandsFolder:FindFirstChild(islandName)
-				if island then
-					local wave = island:FindFirstChild("Wave")
-					if wave then
-						local ds = wave:FindFirstChild("DoubleSpeed")
-						if ds and not ds.Value then
-							doubleSpeedRemote:FireServer()
-						end
-					end
-				end
-				task.wait(15)
 			end
 		end
 	end)
@@ -480,7 +480,6 @@ end
 -- Put toggles into tabs
 local refreshStart = makeToggle(mainPage, "Start / Surrender Loop", "start")
 local refreshSpam  = makeToggle(mainPage, "Spam-Wave Start", "spamwave")
-local refreshSpeed = makeToggle(mainPage, "Auto 2X Speed", "speed")
 local refreshMrs = makeToggle(buyPage, "Auto Buy: MrsClaus", "autobuyMrsclaus")
 local refreshCla = makeToggle(buyPage, "Auto Buy: Clasher",  "autobuyClasher")
 local refreshGri = makeToggle(buyPage, "Auto Buy: Grinch",   "autobuyGrinch")
@@ -579,7 +578,6 @@ task.spawn(function()
 	while gui.Parent do
 		refreshStart()
 		refreshSpam()
-		refreshSpeed()
 		refreshMrs()
 		refreshCla()
 		refreshGri()
