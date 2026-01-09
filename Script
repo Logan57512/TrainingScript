@@ -6,7 +6,7 @@ if game.PlaceId ~= 118561469792373 then
 end
 
 -- Defaults (switch-proof: keep existing values if already set)
-_G.start    = (_G.start    ~= nil) and _G.start    or false
+_G.start    = (_G.start    ~= nil) and _G.start    or true
 _G.spamwave = (_G.spamwave ~= nil) and _G.spamwave or false
 _G.speed = (_G.speed ~= nil) and _G.speed or true
 _G.autobuyMrsclaus  = (_G.autobuyMrsclaus  ~= nil) and _G.autobuyMrsclaus  or false
@@ -107,7 +107,7 @@ if not C.spamwaveThread then
 					task.wait()
 				end
 
-				waitWhileOn(100, "spamwave")
+				waitWhileOn(180, "spamwave")
 				if _G.spamwave then
 					SurrenderEvent:FireServer()
 				end
