@@ -6,9 +6,9 @@ if game.PlaceId ~= 118561469792373 then
 end
 
 -- Defaults (switch-proof: keep existing values if already set)
-_G.speed = (_G.speed ~= nil) and _G.speed or true
 _G.start    = (_G.start    ~= nil) and _G.start    or false
 _G.spamwave = (_G.spamwave ~= nil) and _G.spamwave or false
+_G.speed = (_G.speed ~= nil) and _G.speed or true
 _G.autobuyMrsclaus  = (_G.autobuyMrsclaus  ~= nil) and _G.autobuyMrsclaus  or false
 _G.autobuyClasher  = (_G.autobuyClasher  ~= nil) and _G.autobuyClasher  or false
 _G.autobuyGrinch  = (_G.autobuyGrinch  ~= nil) and _G.autobuyGrinch  or false
@@ -29,6 +29,8 @@ local player = Players.LocalPlayer
 local SurrenderEvent = Events:WaitForChild("Surrender")
 local StartWaveEvent = Events:WaitForChild("StartWave")
 local BuyTroopEvent  = Events:WaitForChild("BuyTroop")
+local islandsFolder = workspace:WaitForChild("WorkArea"):WaitForChild("Islands")
+local doubleSpeedRemote = Events:WaitForChild("DoubleSpeed")
 
 -- Helpers
 local function waitUntilOn(flagName)
@@ -49,12 +51,11 @@ local function teleportToSanta()
 	local char = player.Character or player.CharacterAdded:Wait()
 	local hrp = char:WaitForChild("HumanoidRootPart")
 	local santa = workspace:WaitForChild("LeaderboardIsland"):WaitForChild("Santa")
-	-- Santa has no PrimaryPart, so grab any BasePart inside it (or itself if it's already a BasePart)
 	local targetPart
 	if santa:IsA("BasePart") then
 		targetPart = santa
 	else
-		targetPart = santa:FindFirstChildWhichIsA("BasePart", true) -- true = search descendants
+		targetPart = santa:FindFirstChildWhichIsA("BasePart", true)
 	end
 	if not targetPart then return end
 	hrp.CFrame = targetPart.CFrame * CFrame.new(0, 0, -6)
@@ -64,8 +65,9 @@ local function teleportToMyIsland()
 	local char = player.Character or player.CharacterAdded:Wait()
 	local hrp = char:WaitForChild("HumanoidRootPart")
 	local islandName = tostring(player:WaitForChild("Island").Value)
-	local islandModel = workspace.WorkArea.Islands:WaitForChild(islandName)
+	local islandModel = islandsFolder:WaitForChild(islandName)
 	local spawn = islandModel:FindFirstChild("SpawnLocation", true)
+	if not spawn then return warn("No SpawnLocation in", islandName) end
 	hrp.CFrame = spawn.CFrame + Vector3.new(0, 3, 0)
 end
 
@@ -114,26 +116,27 @@ if not C.spamwaveThread then
 	end)
 end
 
-local speedRunning = false
-local function startSpeedLoop()
-	if speedRunning then return end
-	speedRunning = true
-	task.spawn(function()
-		while _G.speed do
-			local islandName = tostring(player:WaitForChild("Island").Value)
-			local island = workspace.WorkArea.Islands:FindFirstChild(islandName)
-			if island and island:FindFirstChild("Wave") then
-				local ds = island.Wave:FindFirstChild("DoubleSpeed")
-				if ds and not ds.Value then
-					Events.DoubleSpeed:FireServer()
+if not C.speedThread then
+	C.speedThread = task.spawn(function()
+		while true do
+			waitUntilOn("speed")
+			while _G.speed do
+				local islandName = tostring(player:WaitForChild("Island").Value)
+				local island = islandsFolder:FindFirstChild(islandName)
+				if island then
+					local wave = island:FindFirstChild("Wave")
+					if wave then
+						local ds = wave:FindFirstChild("DoubleSpeed")
+						if ds and not ds.Value then
+							doubleSpeedRemote:FireServer()
+						end
+					end
 				end
+				task.wait(15)
 			end
-			task.wait(15)
 		end
-		speedRunning = false
 	end)
 end
-
 
 if not C.buymrsclausThread then
 	C.buymrsclausThread = task.spawn(function()
@@ -420,10 +423,6 @@ local function makeToggle(parentFrame, labelText, flagName)
 	btn.MouseButton1Click:Connect(function()
 		_G[flagName] = not _G[flagName]
 		refresh()
-	
-		if flagName == "speed" and _G.speed then
-			startSpeedLoop()
-		end
 	end)	
 
 	refresh()
