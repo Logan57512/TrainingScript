@@ -73,25 +73,17 @@ end
 
 -- ===== Workers (switch-proof) =====
 if _G.speed then
-	task.spawn(function()
-		for i = 1, 5 do
-			local islandName = tostring(player:WaitForChild("Island").Value)
-			local island = islandsFolder:FindFirstChild(islandName)
-			if island then
-				local wave = island:FindFirstChild("Wave")
-				if wave then
-					local ds = wave:FindFirstChild("DoubleSpeed")
-					if ds then
-						if ds.Value == true then
-							break
-						end
-						doubleSpeedRemote:FireServer()
-					end
-				end
-			end
-			task.wait(0.5)
+	for i = 1, 10 do
+		local islandName = tostring(player:WaitForChild("Island").Value)
+		local island = islandsFolder:WaitForChild(islandName)
+		local wave = island:WaitForChild("Wave")
+		local ds = wave:WaitForChild("DoubleSpeed")
+		if ds.Value then
+			break
 		end
-	end)
+		doubleSpeedRemote:FireServer()
+		task.wait(0.5)
+	end
 end
 
 if not C.startThread then
