@@ -83,6 +83,8 @@ if _G.speed then
 		end
 		StartWaveEvent:FireServer()
 		task.wait(0.5)
+		SurrenderEvent:FireServer()
+		task.wait(0.5)
 		doubleSpeedRemote:FireServer()
 		task.wait(0.5)
 	end
