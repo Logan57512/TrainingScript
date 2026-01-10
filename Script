@@ -9,7 +9,7 @@ end
 _G.speed = true
 _G.start = (_G.start ~= nil) and _G.start or true
 _G.spamwave = (_G.spamwave ~= nil) and _G.spamwave or false
-_G.daily = (_G.daily ~= nil) and _G.start or false
+_G.daily = (_G.daily ~= nil) and _G.daily or false
 _G.autobuyMrsclaus = (_G.autobuyMrsclaus ~= nil) and _G.autobuyMrsclaus or false
 _G.autobuyClasher = (_G.autobuyClasher ~= nil) and _G.autobuyClasher or false
 _G.autobuyGrinch = (_G.autobuyGrinch ~= nil) and _G.autobuyGrinch or false
@@ -87,7 +87,7 @@ if _G.speed then
 						if ds.Value == true then
 							break
 						end
-						Events.DoubleSpeed:FireServer()
+						doubleSpeedRemote:FireServer()
 					end
 				end
 			end
@@ -144,7 +144,7 @@ if not C.dailyThread then
 	C.dailyThread = task.spawn(function()
 		while true do
 			waitUntilOn("daily")
-			while G.daily do
+			while _G.daily do
 				ClaimDaily:FireServer()
 				task.wait()
 			end
