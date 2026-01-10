@@ -6,7 +6,6 @@ if game.PlaceId ~= 118561469792373 then
 end
 
 -- Defaults (switch-proof: keep existing values if already set)
-_G.speed = true
 _G.start = (_G.start ~= nil) and _G.start or true
 _G.spamwave = (_G.spamwave ~= nil) and _G.spamwave or false
 _G.autobuyMrsclaus = (_G.autobuyMrsclaus ~= nil) and _G.autobuyMrsclaus or false
@@ -30,7 +29,6 @@ local SurrenderEvent = Events:WaitForChild("Surrender")
 local StartWaveEvent = Events:WaitForChild("StartWave")
 local BuyTroopEvent  = Events:WaitForChild("BuyTroop")
 local islandsFolder = workspace:WaitForChild("WorkArea"):WaitForChild("Islands")
-local doubleSpeedRemote = Events:WaitForChild("DoubleSpeed")
 
 -- Helpers
 local function waitUntilOn(flagName)
@@ -72,24 +70,6 @@ local function teleportToMyIsland()
 end
 
 -- ===== Workers (switch-proof) =====
-if _G.speed then
-	for i = 1, 5 do
-		local islandName = tostring(player:WaitForChild("Island").Value)
-		local island = islandsFolder:WaitForChild(islandName)
-		local wave = island:WaitForChild("Wave")
-		local ds = wave:WaitForChild("DoubleSpeed")
-		if ds.Value then
-			break
-		end
-		StartWaveEvent:FireServer()
-		task.wait(0.5)
-		SurrenderEvent:FireServer()
-		task.wait(0.5)
-		doubleSpeedRemote:FireServer()
-		task.wait(0.5)
-	end
-end
-
 if not C.startThread then
 	C.startThread = task.spawn(function()
 		while true do
