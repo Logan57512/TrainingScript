@@ -73,7 +73,7 @@ end
 
 -- ===== Workers (switch-proof) =====
 if _G.speed then
-	for i = 1, 10 do
+	for i = 1, 5 do
 		local islandName = tostring(player:WaitForChild("Island").Value)
 		local island = islandsFolder:WaitForChild(islandName)
 		local wave = island:WaitForChild("Wave")
@@ -81,6 +81,8 @@ if _G.speed then
 		if ds.Value then
 			break
 		end
+		StartWaveEvent:FireServer()
+		task.wait(0.5)
 		doubleSpeedRemote:FireServer()
 		task.wait(0.5)
 	end
