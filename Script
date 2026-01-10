@@ -29,7 +29,7 @@ local player = Players.LocalPlayer
 
 local SurrenderEvent = Events:WaitForChild("Surrender")
 local StartWaveEvent = Events:WaitForChild("StartWave")
-local ClaimDaily = Events:WaitForChild("ClaimDaily")
+local ClaimDaily = Events:WaitForChild("CollectCash")
 local BuyTroopEvent  = Events:WaitForChild("BuyTroop")
 local islandsFolder = workspace:WaitForChild("WorkArea"):WaitForChild("Islands")
 local doubleSpeedRemote = Events:WaitForChild("DoubleSpeed")
