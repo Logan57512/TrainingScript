@@ -9,7 +9,6 @@ end
 _G.speed = true
 _G.start = (_G.start ~= nil) and _G.start or true
 _G.spamwave = (_G.spamwave ~= nil) and _G.spamwave or false
-_G.daily = (_G.daily ~= nil) and _G.daily or false
 _G.autobuyMrsclaus = (_G.autobuyMrsclaus ~= nil) and _G.autobuyMrsclaus or false
 _G.autobuyClasher = (_G.autobuyClasher ~= nil) and _G.autobuyClasher or false
 _G.autobuyGrinch = (_G.autobuyGrinch ~= nil) and _G.autobuyGrinch or false
@@ -29,7 +28,6 @@ local player = Players.LocalPlayer
 
 local SurrenderEvent = Events:WaitForChild("Surrender")
 local StartWaveEvent = Events:WaitForChild("StartWave")
-local ClaimDaily = Events:WaitForChild("CollectCash")
 local BuyTroopEvent  = Events:WaitForChild("BuyTroop")
 local islandsFolder = workspace:WaitForChild("WorkArea"):WaitForChild("Islands")
 local doubleSpeedRemote = Events:WaitForChild("DoubleSpeed")
@@ -135,18 +133,6 @@ if not C.spamwaveThread then
 				if _G.spamwave then
 					SurrenderEvent:FireServer()
 				end
-			end
-		end
-	end)
-end
-
-if not C.dailyThread then
-	C.dailyThread = task.spawn(function()
-		while true do
-			waitUntilOn("daily")
-			while _G.daily do
-				ClaimDaily:FireServer()
-				task.wait()
 			end
 		end
 	end)
@@ -494,7 +480,6 @@ end
 -- Put toggles into tabs
 local refreshStart = makeToggle(mainPage, "Start / Surrender Loop", "start")
 local refreshSpam  = makeToggle(mainPage, "Spam-Wave Start", "spamwave")
-local refreshDaily = makeToggle(mainPage, "Claim Daily", "daily")
 local refreshMrs = makeToggle(buyPage, "Auto Buy: MrsClaus", "autobuyMrsclaus")
 local refreshCla = makeToggle(buyPage, "Auto Buy: Clasher",  "autobuyClasher")
 local refreshGri = makeToggle(buyPage, "Auto Buy: Grinch",   "autobuyGrinch")
@@ -593,7 +578,6 @@ task.spawn(function()
 	while gui.Parent do
 		refreshStart()
 		refreshSpam()
-		refreshDaily()
 		refreshMrs()
 		refreshCla()
 		refreshGri()
