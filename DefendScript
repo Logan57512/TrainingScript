@@ -1,0 +1,181 @@
+if game.PlaceID ~= 79152511746013 then return end
+
+local RS = game:GetService("ReplicatedStorage")
+local Events = RS:WaitForChild("Events")
+local Functions = Events:WaitForChild("Functions")
+local Remotes = Events:WaitForChild("Remotes")
+
+local Buy = Functions:WaitForChild("BuyDefense")
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local VirtualUser = game:GetService("VirtualUser")
+
+-- Create ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "DefenseMenuGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+-- Menu Button (Bottom Right)
+local MenuButton = Instance.new("TextButton")
+MenuButton.Name = "MenuButton"
+MenuButton.Size = UDim2.new(0, 60, 0, 60)
+MenuButton.Position = UDim2.new(1, -70, 1, -70)
+MenuButton.AnchorPoint = Vector2.new(0, 0)
+MenuButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MenuButton.BorderSizePixel = 0
+MenuButton.Text = "⚙"
+MenuButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MenuButton.TextSize = 30
+MenuButton.Font = Enum.Font.GothamBold
+MenuButton.Parent = ScreenGui
+
+-- Add rounded corners to button
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(0, 10)
+ButtonCorner.Parent = MenuButton
+
+-- Menu Frame
+local MenuFrame = Instance.new("Frame")
+MenuFrame.Name = "MenuFrame"
+MenuFrame.Size = UDim2.new(0, 300, 0, 400)
+MenuFrame.Position = UDim2.new(1, -310, 1, -480)
+MenuFrame.AnchorPoint = Vector2.new(0, 0)
+MenuFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MenuFrame.BorderSizePixel = 0
+MenuFrame.Visible = false
+MenuFrame.Parent = ScreenGui
+
+local FrameCorner = Instance.new("UICorner")
+FrameCorner.CornerRadius = UDim.new(0, 12)
+FrameCorner.Parent = MenuFrame
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, -20, 0, 40)
+Title.Position = UDim2.new(0, 10, 0, 10)
+Title.BackgroundTransparency = 1
+Title.Text = "Defense Auto-Buy"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 20
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MenuFrame
+
+-- Scrolling Frame for toggles
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size = UDim2.new(1, -20, 1, -60)
+ScrollFrame.Position = UDim2.new(0, 10, 0, 50)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.BorderSizePixel = 0
+ScrollFrame.ScrollBarThickness = 6
+ScrollFrame.Parent = MenuFrame
+
+local Layout = Instance.new("UIListLayout")
+Layout.Padding = UDim.new(0, 8)
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+Layout.Parent = ScrollFrame
+
+-- Defense configurations
+local defenses = {
+    {name = "Mortar", var = "BuyMortar", enabled = true},
+    {name = "Magma Cannon", var = "BuyMCannon", enabled = true},
+    {name = "Double Magma Cannon", var = "BuyDMCannon", enabled = true},
+    {name = "Mega Mortar", var = "BuyMegaMortar", enabled = true},
+    {name = "Mega Tesla", var = "BuyMegaTesla", enabled = true},
+    {name = "Mystic Artillery", var = "BuyMystic", enabled = true},
+    {name = "Inferno Beam", var = "BuyInferno", enabled = true}
+}
+
+-- Initialize global variables
+for _, defense in ipairs(defenses) do
+    _G[defense.var] = defense.enabled
+end
+
+-- Create toggle buttons
+local function createToggle(defense, index)
+    local Toggle = Instance.new("Frame")
+    Toggle.Name = defense.var
+    Toggle.Size = UDim2.new(1, 0, 0, 50)
+    Toggle.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    Toggle.BorderSizePixel = 0
+    Toggle.LayoutOrder = index
+    Toggle.Parent = ScrollFrame
+    
+    local ToggleCorner = Instance.new("UICorner")
+    ToggleCorner.CornerRadius = UDim.new(0, 8)
+    ToggleCorner.Parent = Toggle
+    
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -70, 1, 0)
+    Label.Position = UDim2.new(0, 10, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = defense.name
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.TextSize = 16
+    Label.Font = Enum.Font.Gotham
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Toggle
+    
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(0, 50, 0, 30)
+    Button.Position = UDim2.new(1, -60, 0.5, 0)
+    Button.AnchorPoint = Vector2.new(0, 0.5)
+    Button.BackgroundColor3 = defense.enabled and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(200, 60, 60)
+    Button.BorderSizePixel = 0
+    Button.Text = defense.enabled and "ON" or "OFF"
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.TextSize = 14
+    Button.Font = Enum.Font.GothamBold
+    Button.Parent = Toggle
+    
+    local ButtonCorner = Instance.new("UICorner")
+    ButtonCorner.CornerRadius = UDim.new(0, 6)
+    ButtonCorner.Parent = Button
+    
+    Button.MouseButton1Click:Connect(function()
+        defense.enabled = not defense.enabled
+        _G[defense.var] = defense.enabled
+        Button.Text = defense.enabled and "ON" or "OFF"
+        Button.BackgroundColor3 = defense.enabled and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(200, 60, 60)
+    end)
+end
+
+-- Create all toggles
+for i, defense in ipairs(defenses) do
+    createToggle(defense, i)
+end
+
+-- Update canvas size
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y)
+Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y)
+end)
+
+-- Toggle menu visibility
+MenuButton.MouseButton1Click:Connect(function()
+    MenuFrame.Visible = not MenuFrame.Visible
+end)
+
+-- Auto-buy loops (running in single coroutine for efficiency)
+task.spawn(function()
+    while task.wait(15) do
+        for _, defense in ipairs(defenses) do
+            if _G[defense.var] then
+                task.spawn(function()
+                    pcall(function()
+                        Buy:InvokeServer(defense.name, 1)
+                    end)
+                end)
+            end
+        end
+    end
+end)
+
+player.Idled:Connect(function()
+	-- Pretend we clicked so Roblox doesn't mark us idle
+	VirtualUser:CaptureController()
+	VirtualUser:ClickButton2(Vector2.new(0, 0))
+end)
