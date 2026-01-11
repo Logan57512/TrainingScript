@@ -1,4 +1,4 @@
-if game.PlaceID ~= 79152511746013 then return end
+if game.PlaceId ~= 79152511746013 then return end
 
 local RS = game:GetService("ReplicatedStorage")
 local Events = RS:WaitForChild("Events")
@@ -164,18 +164,15 @@ task.spawn(function()
     while task.wait(15) do
         for _, defense in ipairs(defenses) do
             if _G[defense.var] then
-                task.spawn(function()
-                    pcall(function()
-                        Buy:InvokeServer(defense.name, 1)
-                    end)
+                pcall(function()
+                    Buy:InvokeServer(defense.name, 1)
                 end)
             end
         end
     end
 end)
 
-player.Idled:Connect(function()
-	-- Pretend we clicked so Roblox doesn't mark us idle
+Player.Idled:Connect(function()
 	VirtualUser:CaptureController()
 	VirtualUser:ClickButton2(Vector2.new(0, 0))
 end)
