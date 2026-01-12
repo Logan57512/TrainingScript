@@ -84,6 +84,7 @@ local defenses = {
     {name = "Double Cannon", var = "BuyDCannon", enabled = true},
     {name = "Magma Cannon", var = "BuyMCannon", enabled = false},
     {name = "Double Magma Cannon", var = "BuyDMCannon", enabled = false},
+    {name = "Mega Crossbow", var = "BuyMCrossbow", enabled = true},
     {name = "Flamethrower", var = "BuyFlamethrower", enabled = true},
     {name = "Mega Mortar", var = "BuyMegaMortar", enabled = true},
     {name = "Mega Tesla", var = "BuyMegaTesla", enabled = true},
