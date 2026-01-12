@@ -81,12 +81,17 @@ Layout.Parent = ScrollFrame
 -- Defense configurations
 local defenses = {
     {name = "Mortar", var = "BuyMortar", enabled = true},
-    {name = "Magma Cannon", var = "BuyMCannon", enabled = true},
-    {name = "Double Magma Cannon", var = "BuyDMCannon", enabled = true},
+    {name = "Double Cannon", var = "BuyDCannon", enabled = true},
+    {name = "Magma Cannon", var = "BuyMCannon", enabled = false},
+    {name = "Double Magma Cannon", var = "BuyDMCannon", enabled = false},
+    {name = "Flamethrower", var = "BuyFlamethrower", enabled = true},
     {name = "Mega Mortar", var = "BuyMegaMortar", enabled = true},
     {name = "Mega Tesla", var = "BuyMegaTesla", enabled = true},
     {name = "Mystic Artillery", var = "BuyMystic", enabled = true},
-    {name = "Inferno Beam", var = "BuyInferno", enabled = true}
+    {name = "Inferno Beam", var = "BuyInferno", enabled = true},
+    {name = "Volcanic Artillery", var = "BuyVolcanicArt", enabled = true},
+    {name = "The Crusher", var = "BuyCrusher", enabled = true},
+    {name = "The Shocker", var = "BuyShocker", enabled = true}
 }
 
 -- Initialize global variables
@@ -173,6 +178,7 @@ task.spawn(function()
 end)
 
 Player.Idled:Connect(function()
+	-- Pretend we clicked so Roblox doesn't mark us idle
 	VirtualUser:CaptureController()
 	VirtualUser:ClickButton2(Vector2.new(0, 0))
 end)
