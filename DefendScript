@@ -39,8 +39,8 @@ ButtonCorner.Parent = MenuButton
 -- Menu Frame
 local MenuFrame = Instance.new("Frame")
 MenuFrame.Name = "MenuFrame"
-MenuFrame.Size = UDim2.new(0, 300, 0, 400)
-MenuFrame.Position = UDim2.new(1, -310, 1, -480)
+MenuFrame.Size = UDim2.new(0, 300, 0, 450)
+MenuFrame.Position = UDim2.new(1, -310, 1, -530)
 MenuFrame.AnchorPoint = Vector2.new(0, 0)
 MenuFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MenuFrame.BorderSizePixel = 0
@@ -64,10 +64,23 @@ Title.Font = Enum.Font.GothamBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = MenuFrame
 
+-- Status Label
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Size = UDim2.new(1, -20, 0, 30)
+StatusLabel.Position = UDim2.new(0, 10, 0, 55)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Next check: --s"
+StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+StatusLabel.TextSize = 14
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.Parent = MenuFrame
+
 -- Scrolling Frame for toggles
 local ScrollFrame = Instance.new("ScrollingFrame")
-ScrollFrame.Size = UDim2.new(1, -20, 1, -60)
-ScrollFrame.Position = UDim2.new(0, 10, 0, 50)
+ScrollFrame.Size = UDim2.new(1, -20, 1, -100)
+ScrollFrame.Position = UDim2.new(0, 10, 0, 90)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.BorderSizePixel = 0
 ScrollFrame.ScrollBarThickness = 6
@@ -80,10 +93,13 @@ Layout.Parent = ScrollFrame
 
 -- Defense configurations
 local defenses = {
-    {name = "Mortar", var = "BuyMortar", enabled = true},
     {name = "Double Cannon", var = "BuyDCannon", enabled = true},
-    {name = "Magma Cannon", var = "BuyMCannon", enabled = false},
-    {name = "Double Magma Cannon", var = "BuyDMCannon", enabled = false},
+    {name = "Mortar", var = "BuyMortar", enabled = true},
+    {name = "Catapult", var = "BuyCatapult", enabled = true},
+    {name = "Magma Cannon", var = "BuyMCannon", enabled = true},
+    {name = "Tesla", var = "BuyTesla", enabled = true},
+    {name = "Double Magma Cannon", var = "BuyDMCannon", enabled = true},
+    {name = "Mega Crossbow", var = "BuyMBow", enabled = true},
     {name = "Mega Crossbow", var = "BuyMCrossbow", enabled = true},
     {name = "Flamethrower", var = "BuyFlamethrower", enabled = true},
     {name = "Mega Mortar", var = "BuyMegaMortar", enabled = true},
@@ -165,21 +181,92 @@ MenuButton.MouseButton1Click:Connect(function()
     MenuFrame.Visible = not MenuFrame.Visible
 end)
 
--- Auto-buy loops (running in single coroutine for efficiency)
-task.spawn(function()
-    while task.wait(15) do
-        for _, defense in ipairs(defenses) do
-            if _G[defense.var] then
-                pcall(function()
-                    Buy:InvokeServer(defense.name, 1)
-                end)
+-- Adaptive Polling System
+local MIN_CHECK_INTERVAL = 1.5  -- Fast polling when items found
+local MAX_CHECK_INTERVAL = 12   -- Slow polling when nothing available
+local RESET_CYCLE = 300         -- 5 minutes in seconds
+local MAX_STOCK_PER_DEFENSE = 4 -- Maximum stock per defense
+
+local currentInterval = MIN_CHECK_INTERVAL
+local lastResetTime = tick()
+
+local function tryBuyDefense(defenseName)
+    local success, result = pcall(function()
+        return Buy:InvokeServer(defenseName, 1)
+    end)
+    
+    if success and result then
+        return true
+    end
+    
+    return false
+end
+
+local function buyAllAvailable()
+    local totalPurchased = 0
+    
+    for _, defense in ipairs(defenses) do
+        if _G[defense.var] then
+            local purchased = 0
+            
+            -- Keep buying until out of stock or hit max
+            for attempt = 1, MAX_STOCK_PER_DEFENSE do
+                local bought = tryBuyDefense(defense.name)
+                if bought then
+                    purchased += 1
+                    totalPurchased += 1
+                    task.wait(0.05) -- Small delay between same-item purchases
+                else
+                    break -- Out of stock
+                end
+            end
+            
+            if purchased > 0 then
+                print(`✓ Bought {purchased}x {defense.name}`)
             end
         end
     end
+    
+    return totalPurchased
+end
+
+-- Main adaptive polling loop
+task.spawn(function()
+    while true do
+        local startTime = tick()
+        local purchased = buyAllAvailable()
+        
+        -- Adjust check interval based on success
+        if purchased > 0 then
+            currentInterval = MIN_CHECK_INTERVAL -- Check frequently if finding items
+            StatusLabel.Text = `Purchased {purchased} items! Next: {currentInterval}s`
+            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+        else
+            -- Gradually increase interval when nothing available
+            currentInterval = math.min(currentInterval * 1.3, MAX_CHECK_INTERVAL)
+            StatusLabel.Text = `No items available. Next: {math.floor(currentInterval)}s`
+            StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+        end
+        
+        -- Reset interval prediction near reset time
+        local timeSinceReset = tick() - lastResetTime
+        if timeSinceReset >= RESET_CYCLE then
+            lastResetTime = tick()
+            currentInterval = MIN_CHECK_INTERVAL
+            StatusLabel.Text = "⏰ Reset detected! Fast checking..."
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+        elseif timeSinceReset >= RESET_CYCLE - 30 then
+            currentInterval = MIN_CHECK_INTERVAL -- Poll fast 30s before reset
+            StatusLabel.Text = `Reset soon! Next: {currentInterval}s`
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+        end
+        
+        task.wait(currentInterval)
+    end
 end)
 
+-- Anti-AFK
 Player.Idled:Connect(function()
-	-- Pretend we clicked so Roblox doesn't mark us idle
-	VirtualUser:CaptureController()
-	VirtualUser:ClickButton2(Vector2.new(0, 0))
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new(0, 0))
 end)
