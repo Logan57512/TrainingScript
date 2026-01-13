@@ -93,7 +93,6 @@ Layout.Parent = ScrollFrame
 
 -- Defense configurations
 local defenses = {
-    {name = "Wall", var = "BuyWall", enabled = true},
     {name = "Catapult", var = "BuyCatapult", enabled = true},
     {name = "Magma Cannon", var = "BuyMCannon", enabled = true},
     {name = "Tesla", var = "BuyTesla", enabled = true},
