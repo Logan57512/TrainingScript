@@ -1,5 +1,3 @@
-if game.PlaceId ~= 79152511746013 then return end
-
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
@@ -20,7 +18,7 @@ MenuButton.Name = "EnchantMenuButton"
 MenuButton.Size = UDim2.new(0, 60, 0, 60)
 MenuButton.Position = UDim2.new(1, -140, 1, -70) -- 70 pixels left of the corner button
 MenuButton.AnchorPoint = Vector2.new(0, 0)
-MenuButton.BackgroundColor3 = Color3.fromRGB(60, 40, 140)
+MenuButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 MenuButton.BorderSizePixel = 0
 MenuButton.Text = "✨"
 MenuButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -267,19 +265,12 @@ local function loadDefenses()
         local defenseId = defense.Name
         local defenseName = defenseId:match("^(.-)%{") or defenseId
         
-        -- Get defense level
-        local level = "?"
-        local levelObj = defense:FindFirstChild("Level")
-        if levelObj then
-            level = tostring(levelObj.Value)
-        end
-        
         local DefenseButton = Instance.new("TextButton")
         DefenseButton.Name = defenseId
         DefenseButton.Size = UDim2.new(1, -10, 0, 50)
         DefenseButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
         DefenseButton.BorderSizePixel = 0
-        DefenseButton.Text = `{defenseName} [Lv.{level}]`
+        DefenseButton.Text = defenseName
         DefenseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         DefenseButton.TextSize = 16
         DefenseButton.Font = Enum.Font.Gotham
@@ -396,5 +387,3 @@ StartButton.MouseButton1Click:Connect(startEnchanting)
 Tab1Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     Tab1Content.CanvasSize = UDim2.new(0, 0, 0, Tab1Layout.AbsoluteContentSize.Y + 10)
 end)
-
-print("Auto Enchant Menu loaded!")
