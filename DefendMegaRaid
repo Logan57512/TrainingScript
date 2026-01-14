@@ -1,0 +1,217 @@
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local RS = game:GetService("ReplicatedStorage")
+local Events = RS:WaitForChild("Events")
+local Remotes = Events:WaitForChild("Remotes")
+local Functions = Events:WaitForChild("Functions")
+local JoinRaid = Remotes:WaitForChild("JoinCommunityRaid")
+local PlaceDefense = Functions:WaitForChild("CBuildDefense")
+
+-- Create ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoMegaRaidGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+-- Toggle Button (Bottom Right, moved left of the 2 existing buttons)
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "MegaRaidToggle"
+ToggleButton.Size = UDim2.new(0, 150, 0, 50)
+ToggleButton.Position = UDim2.new(1, -300, 1, -70)
+ToggleButton.AnchorPoint = Vector2.new(0, 0)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 80)
+ToggleButton.BorderSizePixel = 0
+ToggleButton.Text = "Auto Raid: ON"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 16
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.Parent = ScreenGui
+
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(0, 10)
+ButtonCorner.Parent = ToggleButton
+
+-- Status Label
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Size = UDim2.new(0, 150, 0, 25)
+StatusLabel.Position = UDim2.new(1, -300, 1, -100)
+StatusLabel.AnchorPoint = Vector2.new(0, 0)
+StatusLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+StatusLabel.BorderSizePixel = 0
+StatusLabel.Text = "Next: --:--"
+StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+StatusLabel.TextSize = 12
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.Parent = ScreenGui
+
+local StatusCorner = Instance.new("UICorner")
+StatusCorner.CornerRadius = UDim.new(0, 8)
+StatusCorner.Parent = StatusLabel
+
+-- Variables
+local autoRaidEnabled = true
+local isInRaid = false
+local hasJoined = false
+
+-- Troop positions
+local troopPositions = {
+    {
+        Rotation = 90,
+        Position = Vector3.new(1533.6004638671875, 8.505999565124512, 1211.6143798828125)
+    },
+    {
+        Rotation = 90,
+        Position = Vector3.new(1519.6004638671875, 8.505999565124512, 1209.6143798828125)
+    },
+    {
+        Rotation = 90,
+        Position = Vector3.new(1535.6004638671875, 8.505999565124512, 1197.6143798828125)
+    },
+    {
+        Rotation = 90,
+        Position = Vector3.new(1521.6004638671875, 8.505999565124512, 1195.6143798828125)
+    }
+}
+
+-- Toggle button function
+ToggleButton.MouseButton1Click:Connect(function()
+    autoRaidEnabled = not autoRaidEnabled
+    if autoRaidEnabled then
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 80)
+        ToggleButton.Text = "Auto Raid: ON"
+    else
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+        ToggleButton.Text = "Auto Raid: OFF"
+    end
+end)
+
+-- Function to get EST time
+local function getESTTime()
+    local utcTime = os.time()
+    local estOffset = -5 * 3600 -- EST is UTC-5
+    local estTime = utcTime + estOffset
+    return os.date("*t", estTime)
+end
+
+-- Function to place troops
+local function placeTroops()
+    task.wait(15) -- Wait for teleport and load
+    
+    local Loadout = Player:WaitForChild("Loadout")
+    local troops = {}
+    
+    -- Get all troops from loadout
+    for i, v in ipairs(Loadout:GetChildren()) do
+        table.insert(troops, v.Name)
+    end
+    
+    if #troops == 0 then
+        warn("No troops in loadout!")
+        StatusLabel.Text = "No troops found!"
+        return
+    end
+    
+    StatusLabel.Text = "Placing troops..."
+    
+    -- Place each troop at its position
+    for i, troopName in ipairs(troops) do
+        if troopPositions[i] then
+            local success, result = pcall(function()
+                return PlaceDefense:InvokeServer(troopName, troopPositions[i])
+            end)
+            
+            if success then
+                print(`Placed {troopName} at position {i}`)
+            else
+                warn(`Failed to place {troopName}: {result}`)
+            end
+            
+            task.wait(0.5) -- Small delay between placements
+        end
+    end
+    
+    StatusLabel.Text = "Troops placed!"
+    task.wait(2)
+    isInRaid = false
+end
+
+-- Function to join raid
+local function joinRaid()
+    if not autoRaidEnabled or hasJoined or isInRaid then
+        return
+    end
+    
+    local success, result = pcall(function()
+        JoinRaid:FireServer()
+    end)
+    
+    if success then
+        print("Joined Mega Raid!")
+        StatusLabel.Text = "Joining raid..."
+        hasJoined = true
+        isInRaid = true
+        
+        -- Start placement after joining
+        task.spawn(placeTroops)
+    else
+        warn(`Failed to join raid: {result}`)
+        StatusLabel.Text = "Failed to join!"
+    end
+end
+
+-- Function to format time remaining
+local function formatTimeRemaining(seconds)
+    local mins = math.floor(seconds / 60)
+    local secs = seconds % 60
+    return string.format("%d:%02d", mins, secs)
+end
+
+-- Main loop to check time
+task.spawn(function()
+    while true do
+        local estTime = getESTTime()
+        local currentMinute = estTime.min
+        local currentSecond = estTime.sec
+        
+        -- Calculate time until next x:03
+        local secondsInHour = (currentMinute * 60) + currentSecond
+        local targetSecond = 3 * 60 -- 3 minutes = 180 seconds
+        local secondsUntilJoin
+        
+        if secondsInHour < targetSecond then
+            -- Haven't reached x:03 yet this hour
+            secondsUntilJoin = targetSecond - secondsInHour
+        else
+            -- Past x:03, wait for next hour
+            secondsUntilJoin = (3600 - secondsInHour) + targetSecond
+        end
+        
+        -- Update status label
+        if autoRaidEnabled and not isInRaid then
+            StatusLabel.Text = `Next: {formatTimeRemaining(secondsUntilJoin)}`
+        end
+        
+        -- Join at x:03
+        if currentMinute == 3 and currentSecond == 0 and autoRaidEnabled then
+            joinRaid()
+        end
+        
+        -- Reset hasJoined flag at x:05 (raid starts)
+        if currentMinute == 5 and currentSecond == 0 then
+            hasJoined = false
+        end
+        
+        -- Reset at the start of each hour (x:00)
+        if currentMinute == 0 and currentSecond == 0 then
+            hasJoined = false
+            isInRaid = false
+        end
+        
+        task.wait(1) -- Check every second
+    end
+end)
+
+print("Auto Mega Raid loaded!")
+print("Enabled by default - Toggle with button in bottom left")
