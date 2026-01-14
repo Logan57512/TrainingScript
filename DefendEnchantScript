@@ -217,7 +217,7 @@ StartButtonCorner.Parent = StartButton
 local selectedDefense = nil
 local selectedCount = 500
 local isEnchanting = false
-local enchantCounts = {100, 250, 500, 1000}
+local enchantCounts = {100, 250, 500, 1000, 5000}
 
 -- Create enchant count buttons
 for i, count in ipairs(enchantCounts) do
