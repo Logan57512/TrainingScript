@@ -104,7 +104,7 @@ local function placeTroops()
     
     -- Get all troops from loadout
     for i, v in ipairs(Loadout:GetChildren()) do
-        table.insert(troops, v.Name)
+        table.insert(troops, tostring(v.Value))
     end
     
     if #troops == 0 then
@@ -128,7 +128,7 @@ local function placeTroops()
                 warn(`Failed to place {troopName}: {result}`)
             end
             
-            task.wait(0.5) -- Small delay between placements
+            task.wait(5)
         end
     end
     
