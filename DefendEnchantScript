@@ -16,7 +16,7 @@ ScreenGui.Parent = PlayerGui
 local MenuButton = Instance.new("TextButton")
 MenuButton.Name = "EnchantMenuButton"
 MenuButton.Size = UDim2.new(0, 60, 0, 60)
-MenuButton.Position = UDim2.new(1, -140, 1, -70) -- 70 pixels left of the corner button
+MenuButton.Position = UDim2.new(1, -140, 1, -70)
 MenuButton.AnchorPoint = Vector2.new(0, 0)
 MenuButton.BackgroundColor3 = Color3.fromRGB(60, 40, 140)
 MenuButton.BorderSizePixel = 0
@@ -33,7 +33,7 @@ ButtonCorner.Parent = MenuButton
 -- Main Menu Frame
 local MenuFrame = Instance.new("Frame")
 MenuFrame.Name = "MenuFrame"
-MenuFrame.Size = UDim2.new(0, 500, 0, 450)
+MenuFrame.Size = UDim2.new(0, 400, 0, 450)
 MenuFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 MenuFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MenuFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
@@ -108,151 +108,155 @@ StatusLabel.Font = Enum.Font.GothamBold
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 StatusLabel.Parent = MenuFrame
 
--- Tab Container
-local TabContainer = Instance.new("Frame")
-TabContainer.Name = "TabContainer"
-TabContainer.Size = UDim2.new(1, -20, 0, 40)
-TabContainer.Position = UDim2.new(0, 10, 0, 90)
-TabContainer.BackgroundTransparency = 1
-TabContainer.Parent = MenuFrame
+-- Defense List Label
+local DefenseLabel = Instance.new("TextLabel")
+DefenseLabel.Name = "DefenseLabel"
+DefenseLabel.Size = UDim2.new(1, -20, 0, 30)
+DefenseLabel.Position = UDim2.new(0, 10, 0, 90)
+DefenseLabel.BackgroundTransparency = 1
+DefenseLabel.Text = "Select a Defense:"
+DefenseLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+DefenseLabel.TextSize = 14
+DefenseLabel.Font = Enum.Font.GothamBold
+DefenseLabel.TextXAlignment = Enum.TextXAlignment.Left
+DefenseLabel.Parent = MenuFrame
 
--- Tab 1: Defense Selection
-local Tab1Button = Instance.new("TextButton")
-Tab1Button.Name = "Tab1Button"
-Tab1Button.Size = UDim2.new(0.5, -5, 1, 0)
-Tab1Button.Position = UDim2.new(0, 0, 0, 0)
-Tab1Button.BackgroundColor3 = Color3.fromRGB(60, 40, 140)
-Tab1Button.BorderSizePixel = 0
-Tab1Button.Text = "Select Defense"
-Tab1Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-Tab1Button.TextSize = 16
-Tab1Button.Font = Enum.Font.GothamBold
-Tab1Button.Parent = TabContainer
+-- Defense List ScrollingFrame
+local DefenseList = Instance.new("ScrollingFrame")
+DefenseList.Name = "DefenseList"
+DefenseList.Size = UDim2.new(1, -20, 1, -140)
+DefenseList.Position = UDim2.new(0, 10, 0, 125)
+DefenseList.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+DefenseList.BorderSizePixel = 0
+DefenseList.ScrollBarThickness = 6
+DefenseList.Parent = MenuFrame
 
-local Tab1Corner = Instance.new("UICorner")
-Tab1Corner.CornerRadius = UDim.new(0, 8)
-Tab1Corner.Parent = Tab1Button
+local ListCorner = Instance.new("UICorner")
+ListCorner.CornerRadius = UDim.new(0, 8)
+ListCorner.Parent = DefenseList
 
--- Tab 2: Enchant Count Selection
-local Tab2Button = Instance.new("TextButton")
-Tab2Button.Name = "Tab2Button"
-Tab2Button.Size = UDim2.new(0.5, -5, 1, 0)
-Tab2Button.Position = UDim2.new(0.5, 5, 0, 0)
-Tab2Button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-Tab2Button.BorderSizePixel = 0
-Tab2Button.Text = "Enchant Count"
-Tab2Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-Tab2Button.TextSize = 16
-Tab2Button.Font = Enum.Font.GothamBold
-Tab2Button.Parent = TabContainer
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.Padding = UDim.new(0, 5)
+ListLayout.SortOrder = Enum.SortOrder.Name
+ListLayout.Parent = DefenseList
 
-local Tab2Corner = Instance.new("UICorner")
-Tab2Corner.CornerRadius = UDim.new(0, 8)
-Tab2Corner.Parent = Tab2Button
+-- Popup Frame for Count Selection
+local PopupFrame = Instance.new("Frame")
+PopupFrame.Name = "PopupFrame"
+PopupFrame.Size = UDim2.new(0, 350, 0, 300)
+PopupFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+PopupFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+PopupFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+PopupFrame.BorderSizePixel = 0
+PopupFrame.Visible = false
+PopupFrame.ZIndex = 10
+PopupFrame.Parent = ScreenGui
 
--- Content Frame for Tab 1 (Defense List)
-local Tab1Content = Instance.new("ScrollingFrame")
-Tab1Content.Name = "Tab1Content"
-Tab1Content.Size = UDim2.new(1, -20, 1, -220)
-Tab1Content.Position = UDim2.new(0, 10, 0, 140)
-Tab1Content.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-Tab1Content.BorderSizePixel = 0
-Tab1Content.ScrollBarThickness = 6
-Tab1Content.Visible = true
-Tab1Content.Parent = MenuFrame
+local PopupCorner = Instance.new("UICorner")
+PopupCorner.CornerRadius = UDim.new(0, 12)
+PopupCorner.Parent = PopupFrame
 
-local Tab1Corner = Instance.new("UICorner")
-Tab1Corner.CornerRadius = UDim.new(0, 8)
-Tab1Corner.Parent = Tab1Content
+-- Popup Title
+local PopupTitle = Instance.new("TextLabel")
+PopupTitle.Name = "PopupTitle"
+PopupTitle.Size = UDim2.new(1, -20, 0, 40)
+PopupTitle.Position = UDim2.new(0, 10, 0, 10)
+PopupTitle.BackgroundTransparency = 1
+PopupTitle.Text = "Select Enchant Count"
+PopupTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+PopupTitle.TextSize = 18
+PopupTitle.Font = Enum.Font.GothamBold
+PopupTitle.TextXAlignment = Enum.TextXAlignment.Center
+PopupTitle.ZIndex = 10
+PopupTitle.Parent = PopupFrame
 
-local Tab1Layout = Instance.new("UIListLayout")
-Tab1Layout.Padding = UDim.new(0, 5)
-Tab1Layout.SortOrder = Enum.SortOrder.Name
-Tab1Layout.Parent = Tab1Content
+-- Popup Grid Container
+local PopupGrid = Instance.new("Frame")
+PopupGrid.Name = "PopupGrid"
+PopupGrid.Size = UDim2.new(1, -20, 1, -110)
+PopupGrid.Position = UDim2.new(0, 10, 0, 55)
+PopupGrid.BackgroundTransparency = 1
+PopupGrid.ZIndex = 10
+PopupGrid.Parent = PopupFrame
 
--- Content Frame for Tab 2 (Enchant Count)
-local Tab2Content = Instance.new("Frame")
-Tab2Content.Name = "Tab2Content"
-Tab2Content.Size = UDim2.new(1, -20, 1, -220)
-Tab2Content.Position = UDim2.new(0, 10, 0, 140)
-Tab2Content.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-Tab2Content.BorderSizePixel = 0
-Tab2Content.Visible = false
-Tab2Content.Parent = MenuFrame
+local GridLayout = Instance.new("UIGridLayout")
+GridLayout.CellSize = UDim2.new(0, 100, 0, 80)
+GridLayout.CellPadding = UDim2.new(0, 5, 0, 5)
+GridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+GridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+GridLayout.Parent = PopupGrid
 
-local Tab2ContentCorner = Instance.new("UICorner")
-Tab2ContentCorner.CornerRadius = UDim.new(0, 8)
-Tab2ContentCorner.Parent = Tab2Content
+-- Popup Cancel Button
+local PopupCancel = Instance.new("TextButton")
+PopupCancel.Name = "PopupCancel"
+PopupCancel.Size = UDim2.new(1, -20, 0, 40)
+PopupCancel.Position = UDim2.new(0, 10, 1, -50)
+PopupCancel.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+PopupCancel.BorderSizePixel = 0
+PopupCancel.Text = "Cancel"
+PopupCancel.TextColor3 = Color3.fromRGB(255, 255, 255)
+PopupCancel.TextSize = 16
+PopupCancel.Font = Enum.Font.GothamBold
+PopupCancel.ZIndex = 10
+PopupCancel.Parent = PopupFrame
 
-local Tab2Layout = Instance.new("UIGridLayout")
-Tab2Layout.CellSize = UDim2.new(0, 230, 0, 100)
-Tab2Layout.CellPadding = UDim2.new(0, 10, 0, 10)
-Tab2Layout.SortOrder = Enum.SortOrder.LayoutOrder
-Tab2Layout.Parent = Tab2Content
-
--- Padding for Tab 2
-local Tab2Padding = Instance.new("UIPadding")
-Tab2Padding.PaddingTop = UDim.new(0, 10)
-Tab2Padding.PaddingLeft = UDim.new(0, 10)
-Tab2Padding.Parent = Tab2Content
-
--- Start Enchant Button
-local StartButton = Instance.new("TextButton")
-StartButton.Name = "StartButton"
-StartButton.Size = UDim2.new(1, -20, 0, 50)
-StartButton.Position = UDim2.new(0, 10, 1, -60)
-StartButton.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
-StartButton.BorderSizePixel = 0
-StartButton.Text = "Start Enchanting"
-StartButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-StartButton.TextSize = 18
-StartButton.Font = Enum.Font.GothamBold
-StartButton.Parent = MenuFrame
-
-local StartButtonCorner = Instance.new("UICorner")
-StartButtonCorner.CornerRadius = UDim.new(0, 8)
-StartButtonCorner.Parent = StartButton
+local CancelCorner = Instance.new("UICorner")
+CancelCorner.CornerRadius = UDim.new(0, 8)
+CancelCorner.Parent = PopupCancel
 
 -- Variables
 local selectedDefense = nil
-local selectedCount = 500
+local selectedDefenseName = ""
 local isEnchanting = false
 local enchantCounts = {100, 250, 500, 1000, 5000}
 
--- Create enchant count buttons
+-- Create count buttons in popup
 for i, count in ipairs(enchantCounts) do
     local CountButton = Instance.new("TextButton")
     CountButton.Name = "Count"..count
-    CountButton.Size = UDim2.new(0, 230, 0, 100)
-    CountButton.BackgroundColor3 = (count == 500) and Color3.fromRGB(60, 120, 200) or Color3.fromRGB(50, 50, 50)
+    CountButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
     CountButton.BorderSizePixel = 0
-    CountButton.Text = count.." Rolls"
+    CountButton.Text = count
     CountButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    CountButton.TextSize = 24
+    CountButton.TextSize = 20
     CountButton.Font = Enum.Font.GothamBold
     CountButton.LayoutOrder = i
-    CountButton.Parent = Tab2Content
+    CountButton.ZIndex = 10
+    CountButton.Parent = PopupGrid
     
     local CountCorner = Instance.new("UICorner")
     CountCorner.CornerRadius = UDim.new(0, 8)
     CountCorner.Parent = CountButton
     
     CountButton.MouseButton1Click:Connect(function()
-        selectedCount = count
-        -- Update all buttons
-        for _, child in ipairs(Tab2Content:GetChildren()) do
-            if child:IsA("TextButton") then
-                child.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            end
-        end
-        CountButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
+        if not selectedDefense then return end
+        PopupFrame.Visible = false
+        startEnchanting(count)
     end)
 end
+
+-- Function to show popup
+local function showPopup()
+    if not selectedDefense then
+        StatusLabel.Text = "Status: No defense selected!"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        task.wait(2)
+        StatusLabel.Text = "Status: Ready"
+        StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        return
+    end
+    PopupFrame.Visible = true
+end
+
+-- Close popup
+PopupCancel.MouseButton1Click:Connect(function()
+    PopupFrame.Visible = false
+end)
 
 -- Function to load defenses from inventory
 local function loadDefenses()
     -- Clear existing
-    for _, child in ipairs(Tab1Content:GetChildren()) do
+    for _, child in ipairs(DefenseList:GetChildren()) do
         if child:IsA("TextButton") then
             child:Destroy()
         end
@@ -282,7 +286,7 @@ local function loadDefenses()
         DefenseButton.TextSize = 16
         DefenseButton.Font = Enum.Font.Gotham
         DefenseButton.TextXAlignment = Enum.TextXAlignment.Left
-        DefenseButton.Parent = Tab1Content
+        DefenseButton.Parent = DefenseList
         
         local DefenseCorner = Instance.new("UICorner")
         DefenseCorner.CornerRadius = UDim.new(0, 8)
@@ -292,36 +296,34 @@ local function loadDefenses()
         Padding.PaddingLeft = UDim.new(0, 10)
         Padding.Parent = DefenseButton
         
-        DefenseButton.MouseButton1Click:Connect(function()
+        -- Enchant button on the right
+        local EnchantBtn = Instance.new("TextButton")
+        EnchantBtn.Name = "EnchantBtn"
+        EnchantBtn.Size = UDim2.new(0, 80, 0, 35)
+        EnchantBtn.Position = UDim2.new(1, -90, 0.5, 0)
+        EnchantBtn.AnchorPoint = Vector2.new(0, 0.5)
+        EnchantBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+        EnchantBtn.BorderSizePixel = 0
+        EnchantBtn.Text = "Enchant"
+        EnchantBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        EnchantBtn.TextSize = 14
+        EnchantBtn.Font = Enum.Font.GothamBold
+        EnchantBtn.Parent = DefenseButton
+        
+        local EnchantCorner = Instance.new("UICorner")
+        EnchantCorner.CornerRadius = UDim.new(0, 6)
+        EnchantCorner.Parent = EnchantBtn
+        
+        EnchantBtn.MouseButton1Click:Connect(function()
             selectedDefense = defenseId
-            -- Update all buttons
-            for _, child in ipairs(Tab1Content:GetChildren()) do
-                if child:IsA("TextButton") then
-                    child.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-                end
-            end
-            DefenseButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
+            selectedDefenseName = defenseName
+            showPopup()
         end)
     end
     
     -- Update canvas size
-    Tab1Content.CanvasSize = UDim2.new(0, 0, 0, Tab1Layout.AbsoluteContentSize.Y + 10)
+    DefenseList.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 10)
 end
-
--- Tab switching
-Tab1Button.MouseButton1Click:Connect(function()
-    Tab1Content.Visible = true
-    Tab2Content.Visible = false
-    Tab1Button.BackgroundColor3 = Color3.fromRGB(60, 40, 140)
-    Tab2Button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-end)
-
-Tab2Button.MouseButton1Click:Connect(function()
-    Tab1Content.Visible = false
-    Tab2Content.Visible = true
-    Tab1Button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    Tab2Button.BackgroundColor3 = Color3.fromRGB(60, 40, 140)
-end)
 
 -- Menu toggle
 MenuButton.MouseButton1Click:Connect(function()
@@ -336,30 +338,19 @@ CloseButton.MouseButton1Click:Connect(function()
 end)
 
 -- Enchanting function
-local function startEnchanting()
+function startEnchanting(count)
     if isEnchanting then
         warn("Already enchanting!")
         return
     end
     
-    if not selectedDefense then
-        StatusLabel.Text = "Status: No defense selected!"
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-        task.wait(2)
-        StatusLabel.Text = "Status: Ready"
-        StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-        return
-    end
-    
     isEnchanting = true
-    StartButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-    StartButton.Text = "Enchanting..."
     
     task.spawn(function()
-        StatusLabel.Text = `Status: Enchanting {selectedCount} times...`
+        StatusLabel.Text = `Status: Enchanting {selectedDefenseName} {count} times...`
         StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
         
-        for i = 1, selectedCount do
+        for i = 1, count do
             local success, result = pcall(function()
                 return Enchant:InvokeServer(selectedDefense)
             end)
@@ -369,7 +360,7 @@ local function startEnchanting()
             end
             
             if i % 50 == 0 then
-                StatusLabel.Text = `Status: Enchanting... ({i}/{selectedCount})`
+                StatusLabel.Text = `Status: Enchanting... ({i}/{count})`
             end
             
             task.wait()
@@ -380,17 +371,13 @@ local function startEnchanting()
         print("Successfully Enchanted All")
         
         isEnchanting = false
-        StartButton.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
-        StartButton.Text = "Start Enchanting"
         
         task.wait(3)
         StatusLabel.Text = "Status: Ready"
     end)
 end
 
-StartButton.MouseButton1Click:Connect(startEnchanting)
-
 -- Update canvas size when layout changes
-Tab1Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    Tab1Content.CanvasSize = UDim2.new(0, 0, 0, Tab1Layout.AbsoluteContentSize.Y + 10)
+ListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    DefenseList.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 10)
 end)
