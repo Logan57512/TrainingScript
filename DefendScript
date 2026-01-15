@@ -31,7 +31,6 @@ MenuButton.TextSize = 30
 MenuButton.Font = Enum.Font.GothamBold
 MenuButton.Parent = ScreenGui
 
--- Add rounded corners to button
 local ButtonCorner = Instance.new("UICorner")
 ButtonCorner.CornerRadius = UDim.new(0, 10)
 ButtonCorner.Parent = MenuButton
@@ -70,7 +69,7 @@ StatusLabel.Name = "StatusLabel"
 StatusLabel.Size = UDim2.new(1, -20, 0, 30)
 StatusLabel.Position = UDim2.new(0, 10, 0, 55)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Next check: --s"
+StatusLabel.Text = "Next reset: --:--"
 StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
 StatusLabel.TextSize = 14
 StatusLabel.Font = Enum.Font.Gotham
@@ -178,14 +177,9 @@ MenuButton.MouseButton1Click:Connect(function()
     MenuFrame.Visible = not MenuFrame.Visible
 end)
 
--- Adaptive Polling System
-local MIN_CHECK_INTERVAL = 1.5  -- Fast polling when items found
-local MAX_CHECK_INTERVAL = 12   -- Slow polling when nothing available
-local RESET_CYCLE = 300         -- 5 minutes in seconds
-local MAX_STOCK_PER_DEFENSE = 4 -- Maximum stock per defense
-
-local currentInterval = MIN_CHECK_INTERVAL
-local lastResetTime = tick()
+-- Simple 1-Minute Check System
+local MAX_STOCK_PER_DEFENSE = 4
+local CHECK_INTERVAL = 60 -- Check every 60 seconds
 
 local function tryBuyDefense(defenseName)
     local success, result = pcall(function()
@@ -212,9 +206,9 @@ local function buyAllAvailable()
                 if bought then
                     purchased += 1
                     totalPurchased += 1
-                    task.wait(0.05) -- Small delay between same-item purchases
+                    task.wait(0.05)
                 else
-                    break -- Out of stock
+                    break
                 end
             end
             
@@ -227,38 +221,23 @@ local function buyAllAvailable()
     return totalPurchased
 end
 
--- Main adaptive polling loop
+-- Main loop - check every minute
 task.spawn(function()
     while true do
-        local startTime = tick()
+        StatusLabel.Text = "🛒 Checking shop..."
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+        
         local purchased = buyAllAvailable()
         
-        -- Adjust check interval based on success
         if purchased > 0 then
-            currentInterval = MIN_CHECK_INTERVAL -- Check frequently if finding items
-            StatusLabel.Text = `Purchased {purchased} items! Next: {currentInterval}s`
+            StatusLabel.Text = `✓ Bought {purchased} items!`
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
         else
-            -- Gradually increase interval when nothing available
-            currentInterval = math.min(currentInterval * 1.3, MAX_CHECK_INTERVAL)
-            StatusLabel.Text = `No items available. Next: {math.floor(currentInterval)}s`
+            StatusLabel.Text = "No items available"
             StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
         end
         
-        -- Reset interval prediction near reset time
-        local timeSinceReset = tick() - lastResetTime
-        if timeSinceReset >= RESET_CYCLE then
-            lastResetTime = tick()
-            currentInterval = MIN_CHECK_INTERVAL
-            StatusLabel.Text = "⏰ Reset detected! Fast checking..."
-            StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-        elseif timeSinceReset >= RESET_CYCLE - 30 then
-            currentInterval = MIN_CHECK_INTERVAL -- Poll fast 30s before reset
-            StatusLabel.Text = `Reset soon! Next: {currentInterval}s`
-            StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-        end
-        
-        task.wait(currentInterval)
+        task.wait(CHECK_INTERVAL)
     end
 end)
 
