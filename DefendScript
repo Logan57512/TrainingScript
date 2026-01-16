@@ -104,7 +104,9 @@ local defenses = {
     {name = "Inferno Beam", var = "BuyInferno", enabled = true},
     {name = "Volcanic Artillery", var = "BuyVolcanicArt", enabled = true},
     {name = "The Crusher", var = "BuyCrusher", enabled = true},
-    {name = "The Shocker", var = "BuyShocker", enabled = true}
+    {name = "The Shocker", var = "BuyShocker", enabled = true},
+    {name = "Bomb Tower", var = "BuyBTower", enabled = true},
+    {name = "Rocket Artillery", var = "BuyRArtillery", enabled = true}
 }
 
 -- Initialize global variables
