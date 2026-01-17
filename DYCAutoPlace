@@ -1,0 +1,151 @@
+if game.PlaceId ~= 79152511746013 then return end
+
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local RS = game:GetService("ReplicatedStorage")
+local Events = RS:WaitForChild("Events")
+local Functions = Events:WaitForChild("Functions")
+local BuildDefense = Functions:WaitForChild("BuildDefense")
+
+-- Configuration (easy to change)
+local Item = "Wall"
+local Obj = "Blueprint"
+
+
+-- Starting position for Row 1, Column 1
+local START_X = 1563.6004638671875
+local START_Y = 8.505999565124512
+local START_Z = 81.50093078613281
+
+-- Grid settings
+local ROWS = 7 
+local COLUMNS = 10
+local COLUMN_SPACING = -4    -- X-axis spacing between columns
+local ROW_SPACING = -4      -- Z-axis spacing between rows
+local ROTATION = 90
+
+-- Create ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoPlaceGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+-- Place Button (Bottom Right, left of other buttons)
+local PlaceButton = Instance.new("TextButton")
+PlaceButton.Name = "PlaceButton"
+PlaceButton.Size = UDim2.new(0, 150, 0, 50)
+PlaceButton.Position = UDim2.new(1, -390, 1, -70) -- Left of the 3 existing buttons
+PlaceButton.AnchorPoint = Vector2.new(0, 0)
+PlaceButton.BackgroundColor3 = Color3.fromRGB(100, 60, 200)
+PlaceButton.BorderSizePixel = 0
+PlaceButton.Text = "Place Walls"
+PlaceButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlaceButton.TextSize = 16
+PlaceButton.Font = Enum.Font.GothamBold
+PlaceButton.Parent = ScreenGui
+
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(0, 10)
+ButtonCorner.Parent = PlaceButton
+
+-- Status Label
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Size = UDim2.new(0, 150, 0, 25)
+StatusLabel.Position = UDim2.new(1, -390, 1, -100)
+StatusLabel.AnchorPoint = Vector2.new(0, 0)
+StatusLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+StatusLabel.BorderSizePixel = 0
+StatusLabel.Text = "Ready"
+StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+StatusLabel.TextSize = 12
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.Parent = ScreenGui
+
+local StatusCorner = Instance.new("UICorner")
+StatusCorner.CornerRadius = UDim.new(0, 8)
+StatusCorner.Parent = StatusLabel
+
+-- Variables
+local isPlacing = false
+
+-- Function to place a single defense
+local function placeDefense(x, y, z)
+    local args = {
+        Item,
+        Obj,
+        {
+            Rotation = ROTATION,
+            Position = Vector3.new(x, y, z)
+        }
+    }
+    
+    local success, result = pcall(function()
+        return BuildDefense:InvokeServer(unpack(args))
+    end)
+    
+    if success then
+        return true
+    else
+        warn(`Failed to place at ({x}, {y}, {z}): {result}`)
+        return false
+    end
+end
+
+-- Function to place all walls in grid
+local function placeAllWalls()
+    if isPlacing then
+        warn("Already placing!")
+        return
+    end
+    
+    isPlacing = true
+    PlaceButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    PlaceButton.Text = "Placing..."
+    
+    task.spawn(function()
+        local totalPlaced = 0
+        local totalAttempts = ROWS * COLUMNS
+        
+        -- Loop through each row
+        for row = 1, ROWS do
+            local currentZ = START_Z + ((row - 1) * ROW_SPACING)
+            
+            -- Loop through each column in this row
+            for col = 1, COLUMNS do
+                local currentX = START_X + ((col - 1) * COLUMN_SPACING)
+                
+                StatusLabel.Text = `Placing {totalPlaced + 1}/{totalAttempts}`
+                StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+                
+                local success = placeDefense(currentX, START_Y, currentZ)
+                
+                if success then
+                    totalPlaced += 1
+                end
+                
+                task.wait(0.05) -- Small delay between placements
+            end
+        end
+        
+        StatusLabel.Text = `Done! {totalPlaced}/{totalAttempts}`
+        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+        print(`Placed {totalPlaced} out of {totalAttempts} walls`)
+        
+        isPlacing = false
+        PlaceButton.BackgroundColor3 = Color3.fromRGB(100, 60, 200)
+        PlaceButton.Text = "Place Walls"
+        
+        task.wait(3)
+        StatusLabel.Text = "Ready"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+end
+
+-- Button click handler
+PlaceButton.MouseButton1Click:Connect(placeAllWalls)
+
+print("Auto-Place GUI loaded!")
+print(`Config: Item="{Item}", Obj="{Obj}"`)
+print(`Grid: {ROWS} rows x {COLUMNS} columns = {ROWS * COLUMNS} total placements`)
