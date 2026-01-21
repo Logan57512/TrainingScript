@@ -69,7 +69,7 @@ local troopPositions = {
     },
     {
         Rotation = 90,
-        Position = Vector3.new(1533.6004638671875, 8.505999565124512, 1197.6143798828125)
+        Position = Vector3.new(1529.6004638671875, 8.505999565124512, 1197.6143798828125)
     },
     {
         Rotation = 90,
