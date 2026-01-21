@@ -93,13 +93,6 @@ Layout.Parent = ScrollFrame
 -- Defense configurations
 local defenses = {
     {name = "Wall", var = "BuyWall", enabled = true},
-    {name = "Mortar", var = "BuyMortar", enabled = true},
-    {name = "Catapult", var = "BuyCatapult", enabled = true},
-    {name = "Magma Cannon", var = "BuyMCannon", enabled = true},
-    {name = "Tesla", var = "BuyTesla", enabled = true},
-    {name = "Double Magma Cannon", var = "BuyDMCannon", enabled = true},
-    {name = "Mega Crossbow", var = "BuyMCrossbow", enabled = true},
-    {name = "Flamethrower", var = "BuyFlamethrower", enabled = true},
     {name = "Mega Mortar", var = "BuyMegaMortar", enabled = true},
     {name = "Mega Tesla", var = "BuyMegaTesla", enabled = true},
     {name = "Mystic Artillery", var = "BuyMystic", enabled = true},
