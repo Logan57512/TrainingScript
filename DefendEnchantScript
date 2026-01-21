@@ -210,7 +210,7 @@ CancelCorner.Parent = PopupCancel
 local selectedDefense = nil
 local selectedDefenseName = ""
 local isEnchanting = false
-local enchantCounts = {100, 250, 500, 1000, 5000, 20000}
+local enchantCounts = {250, 500, 1000, 2500, 5000, 20000}
 
 -- Create count buttons in popup
 for i, count in ipairs(enchantCounts) do
