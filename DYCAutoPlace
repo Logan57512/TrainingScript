@@ -14,7 +14,7 @@ local Obj = "Blueprint"
 -- Starting position for Row 1, Column 1
 local START_X = 1563.6004638671875
 local START_Y = 8.505999565124512
-local START_Z = 81.50093078613281
+local START_Z = -7.50093078613281
 
 -- Grid settings
 local ROWS = 8
