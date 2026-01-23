@@ -5,11 +5,11 @@ local RS = game:GetService("ReplicatedStorage")
 local Events = RS:WaitForChild("Events")
 local Functions = Events:WaitForChild("Functions")
 local BuildDefense = Functions:WaitForChild("BuildDefense")
+local LevelUpDefenses = Functions:WaitForChild("LevelUpDefenses")
 
 -- Configuration (easy to change)
 local Item = "Wall"
 local Obj = "Blueprint"
-
 
 -- Starting position for Row 1, Column 1
 local START_X = 1563.6004638671875
@@ -23,6 +23,10 @@ local COLUMN_SPACING = -4    -- X-axis spacing between columns
 local ROW_SPACING = -4      -- Z-axis spacing between rows
 local ROTATION = 90
 
+-- Auto Level-Up settings
+local LEVEL_UP_DELAY = 0.05  -- Delay between level-up calls
+local MAX_WALLS_PER_BATCH = 40  -- Maximum walls to send per batch (must be even)
+
 -- Create ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AutoPlaceGui"
@@ -33,7 +37,7 @@ ScreenGui.Parent = PlayerGui
 local PlaceButton = Instance.new("TextButton")
 PlaceButton.Name = "PlaceButton"
 PlaceButton.Size = UDim2.new(0, 150, 0, 50)
-PlaceButton.Position = UDim2.new(1, -390, 1, -70) -- Left of the 3 existing buttons
+PlaceButton.Position = UDim2.new(1, -390, 1, -70)
 PlaceButton.AnchorPoint = Vector2.new(0, 0)
 PlaceButton.BackgroundColor3 = Color3.fromRGB(100, 60, 200)
 PlaceButton.BorderSizePixel = 0
@@ -47,11 +51,29 @@ local ButtonCorner = Instance.new("UICorner")
 ButtonCorner.CornerRadius = UDim.new(0, 10)
 ButtonCorner.Parent = PlaceButton
 
+-- Auto Level-Up Button
+local LevelUpButton = Instance.new("TextButton")
+LevelUpButton.Name = "LevelUpButton"
+LevelUpButton.Size = UDim2.new(0, 150, 0, 50)
+LevelUpButton.Position = UDim2.new(1, -390, 1, -130)
+LevelUpButton.AnchorPoint = Vector2.new(0, 0)
+LevelUpButton.BackgroundColor3 = Color3.fromRGB(200, 100, 60)
+LevelUpButton.BorderSizePixel = 0
+LevelUpButton.Text = "Auto Level: OFF"
+LevelUpButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+LevelUpButton.TextSize = 16
+LevelUpButton.Font = Enum.Font.GothamBold
+LevelUpButton.Parent = ScreenGui
+
+local LevelButtonCorner = Instance.new("UICorner")
+LevelButtonCorner.CornerRadius = UDim.new(0, 10)
+LevelButtonCorner.Parent = LevelUpButton
+
 -- Status Label
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Name = "StatusLabel"
 StatusLabel.Size = UDim2.new(0, 150, 0, 25)
-StatusLabel.Position = UDim2.new(1, -390, 1, -100)
+StatusLabel.Position = UDim2.new(1, -390, 1, -160)
 StatusLabel.AnchorPoint = Vector2.new(0, 0)
 StatusLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 StatusLabel.BorderSizePixel = 0
@@ -67,6 +89,147 @@ StatusCorner.Parent = StatusLabel
 
 -- Variables
 local isPlacing = false
+local autoLevelUpEnabled = false
+local isLevelingUp = false
+
+-- Function to get player's plot
+local function getPlayerPlot()
+    local plotValue = Player:FindFirstChild("Plot")
+    if plotValue and plotValue.Value then
+        return tostring(plotValue.Value)
+    end
+    return nil
+end
+
+-- Function to get all walls in player's plot organized by level (1-9)
+local function getWallsByLevel()
+    local plotId = getPlayerPlot()
+    if not plotId then
+        warn("Could not find player plot")
+        return {}
+    end
+    
+    local plotFolder = game.Workspace.Plots:FindFirstChild(plotId)
+    if not plotFolder then
+        warn("Could not find plot folder in Workspace.Plots")
+        return {}
+    end
+    
+    local defensesFolder = plotFolder:FindFirstChild("Defenses")
+    if not defensesFolder then
+        warn("Could not find Defenses folder")
+        return {}
+    end
+    
+    -- Create 9 tables for levels 1-9
+    local wallsByLevel = {
+        [1] = {},
+        [2] = {},
+        [3] = {},
+        [4] = {},
+        [5] = {},
+        [6] = {},
+        [7] = {},
+        [8] = {},
+        [9] = {}
+    }
+    
+    -- Scan all defenses and organize walls by level
+    for _, defense in ipairs(defensesFolder:GetChildren()) do
+        if defense.Name:match("^Wall%{") then  -- Match Wall{id} format
+            local level = defense:GetAttribute("Level")
+            if level and level >= 1 and level <= 9 then
+                table.insert(wallsByLevel[level], defense.Name)
+            end
+        end
+    end
+    
+    return wallsByLevel
+end
+
+-- Function to level up walls (bulk even amount per level)
+local function levelUpWalls()
+    if isLevelingUp then
+        warn("Already leveling up!")
+        return
+    end
+    
+    isLevelingUp = true
+    
+    task.spawn(function()
+        while autoLevelUpEnabled do
+            local wallsByLevel = getWallsByLevel()
+            local totalLeveled = 0
+            
+            -- Process each level from 1 to 9
+            for level = 1, 9 do
+                if not autoLevelUpEnabled then break end
+                
+                local walls = wallsByLevel[level]
+                
+                -- Only process if there are 2 or more walls at this level
+                if walls and #walls >= 2 then
+                    -- Calculate how many walls we can process (must be even)
+                    local numWalls = #walls
+                    if numWalls % 2 ~= 0 then
+                        numWalls = numWalls - 1  -- Make it even
+                    end
+                    
+                    -- Cap at MAX_WALLS_PER_BATCH
+                    if numWalls > MAX_WALLS_PER_BATCH then
+                        numWalls = MAX_WALLS_PER_BATCH
+                    end
+                    
+                    if numWalls >= 2 then
+                        StatusLabel.Text = `Leveling Lvl {level} ({numWalls} walls)`
+                        StatusLabel.TextColor3 = Color3.fromRGB(255, 150, 0)
+                        
+                        -- Split walls into two arrays (half in each)
+                        local halfCount = numWalls / 2
+                        local array1 = {}
+                        local array2 = {}
+                        
+                        for i = 1, halfCount do
+                            table.insert(array1, walls[i])
+                        end
+                        
+                        for i = halfCount + 1, numWalls do
+                            table.insert(array2, walls[i])
+                        end
+                        
+                        print(`Leveling up {numWalls} walls at level {level}`)
+                        print(`Array 1: {#array1} walls, Array 2: {#array2} walls`)
+                        
+                        local args = {array1, array2}
+                        
+                        local success, result = pcall(function()
+                            return LevelUpDefenses:InvokeServer(unpack(args))
+                        end)
+                        
+                        if success then
+                            totalLeveled += numWalls
+                            print(`Successfully leveled up {numWalls} walls at level {level}`)
+                        else
+                            warn(`Failed to level up level {level}: {result}`)
+                        end
+                        
+                        task.wait(LEVEL_UP_DELAY)
+                    end
+                end
+            end
+            
+            if autoLevelUpEnabled then
+                StatusLabel.Text = `Leveled {totalLeveled} walls`
+                StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+                task.wait(2)
+            end
+        end
+        
+        StatusLabel.Text = "Ready"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        isLevelingUp = false
+    end)
+end
 
 -- Function to place a single defense
 local function placeDefense(x, y, z)
@@ -123,7 +286,7 @@ local function placeAllWalls()
                     totalPlaced += 1
                 end
                 
-                task.wait(0.05) -- Small delay between placements
+                task.wait()
             end
         end
         
@@ -136,14 +299,32 @@ local function placeAllWalls()
         PlaceButton.Text = "Place Walls"
         
         task.wait(3)
-        StatusLabel.Text = "Ready"
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        if not autoLevelUpEnabled and not isLevelingUp then
+            StatusLabel.Text = "Ready"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end
     end)
 end
 
--- Button click handler
+-- Button click handlers
 PlaceButton.MouseButton1Click:Connect(placeAllWalls)
 
-print("Auto-Place GUI loaded!")
+LevelUpButton.MouseButton1Click:Connect(function()
+    autoLevelUpEnabled = not autoLevelUpEnabled
+    
+    if autoLevelUpEnabled then
+        LevelUpButton.Text = "Auto Level: ON"
+        LevelUpButton.BackgroundColor3 = Color3.fromRGB(60, 200, 100)
+        levelUpWalls()
+    else
+        LevelUpButton.Text = "Auto Level: OFF"
+        LevelUpButton.BackgroundColor3 = Color3.fromRGB(200, 100, 60)
+        StatusLabel.Text = "Ready"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end
+end)
+
+print("Auto-Place & Auto-Level GUI loaded!")
 print(`Config: Item="{Item}", Obj="{Obj}"`)
 print(`Grid: {ROWS} rows x {COLUMNS} columns = {ROWS * COLUMNS} total placements`)
+print(`Auto Level-Up: Levels 1-9, Bulk mode (max {MAX_WALLS_PER_BATCH} walls per batch)`)
