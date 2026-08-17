@@ -27,7 +27,7 @@ local LocalPlayer = Players.LocalPlayer
 ---------------------------------------------------------
 local CharacterRarityMap = {
     ["Pre-Selected"] = {
-        "Kaguya", "Naruto Baryon", "Yuji (Modulo)", "Madara", "Madara (Clone)", "Madara (Limbo)", "Madara (Six Path)", "Mojuro"
+        "Kaguya", "Naruto Baryon", "Yuji (Modulo)", "Madara", "Madara (Clone)", "Madara (Limbo)", "Madara (Six Path)", "Mojuro", "JiraiyaFrog", "Dabura", "Yorichi", "Shanks", "Ainz", "Death Knight", "Gojo (Shibuya)", "Doflamingo", "Boros", "Boros v2", "GunDevil", "Goku (Black)", "Sukuna (Heian)", "Muzan", "Muzan (Evolved)"
     },
     Common = {
         "Itadori", "Krillin", "Luffy", "Rock Lee", "Ussop", "Zoro"
@@ -59,7 +59,7 @@ local CharacterRarityMap = {
 }
 
 local AllMutations = {
-    "Astronaut", "Cursed", "Demon", "Destroyer", "Diamond", "Gold", "Hollow", "No Mutation", "Slayer"
+    "Astronaut", "Cursed", "Demon", "Destroyer", "Diamond", "Gold", "Hollow", "No Mutation", "Slayer", "Parasite"
 }
 
 local LowRarities = { "Common", "Rare", "Epic", "Legendary" }
