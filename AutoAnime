@@ -26,68 +26,86 @@ local LocalPlayer = Players.LocalPlayer
 ---------------------------------------------------------
 -- ENGINE & RENDERING OPTIMIZATIONS (AFK MODE)
 ---------------------------------------------------------
+local originalStates = {} -- stores state for RestoreFromAFK()
+
 local function EnableAFKMode()
     local SetHidden = sethiddenproperty or set_hidden_property
-    
-    -- 1. Cap Framerate to Save CPU/GPU load
+
+    -- 1. Cap framerate to save CPU/GPU load
     if setfpscap then
-        pcall(function() setfpscap(10) end)
+        pcall(setfpscap, 10)
     end
 
-    -- 2. Disable 3D Screen Rendering Entirely
-    pcall(function()
-        RunService:Set3dRenderingEnabled(false)
-    end)
+    -- 2. Disable 3D screen rendering entirely (if supported)
+    local renderDisabled = false
+    if RunService.Set3dRenderingEnabled then
+        local ok = pcall(function()
+            RunService:Set3dRenderingEnabled(false)
+        end)
+        renderDisabled = ok
+    end
 
-    -- 3. Lower Lighting & Visual Effects
-    pcall(function()
-        Lighting.GlobalShadows = false
-        Lighting.FogEnd = 9e9
-        Lighting.Brightness = 0
+    -- 3. Lower lighting & visual effects (skip if rendering is already off — moot otherwise)
+    if not renderDisabled then
+        pcall(function()
+            originalStates.GlobalShadows = Lighting.GlobalShadows
+            originalStates.FogEnd = Lighting.FogEnd
+            originalStates.Brightness = Lighting.Brightness
+
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 9e9
+            Lighting.Brightness = 0
+        end)
+
         if SetHidden then
-            pcall(function() SetHidden(Lighting, "Technology", Enum.Technology.Compatibility) end)
+            pcall(SetHidden, Lighting, "Technology", Enum.Technology.Compatibility)
         end
-    end)
+    end
 
-    -- 4. Clear Map Visuals & Textures
+    -- 4 & 5 combined: single pass over workspace for visuals + audio
     pcall(function()
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("BasePart") then
                 obj.Material = Enum.Material.SmoothPlastic
                 obj.Reflectance = 0
             elseif obj:IsA("Decal") or obj:IsA("Texture") then
-                obj:Destroy()
-            elseif obj:IsA("PostEffect") or obj:IsA("ParticleEmitter") or obj:IsA("Beam") or obj:IsA("Trail") then
+                obj.Transparency = 1 -- non-destructive alternative to :Destroy()
+            elseif obj:IsA("PostEffect") or obj:IsA("ParticleEmitter")
+                or obj:IsA("Beam") or obj:IsA("Trail") then
                 obj.Enabled = false
-            end
-        end
-    end)
-
-    -- 5. Mute Audio to Reduce CPU Processing
-    pcall(function()
-        for _, sound in ipairs(workspace: GetDescendants()) do
-            if sound:IsA("Sound") then
-                sound.Volume = 0
-                sound:Stop()
+            elseif obj:IsA("Sound") then
+                obj.Volume = 0
+                obj:Stop()
             end
         end
     end)
 end
 
-EnableAFKMode()
+-- Optional: revert lighting changes (visual/audio destructive changes can't be
+-- fully undone without rejoining, since materials/decals aren't tracked per-object here)
+local function RestoreFromAFK()
+    pcall(function()
+        if originalStates.GlobalShadows ~= nil then
+            Lighting.GlobalShadows = originalStates.GlobalShadows
+        end
+        if originalStates.FogEnd ~= nil then
+            Lighting.FogEnd = originalStates.FogEnd
+        end
+        if originalStates.Brightness ~= nil then
+            Lighting.Brightness = originalStates.Brightness
+        end
+    end)
 
----------------------------------------------------------
--- GARBAGE COLLECTION MEMORY CLEANUP LOOP
----------------------------------------------------------
-task.spawn(function()
-    while true do
-        task.wait(180) -- Clears Lua garbage memory every 3 minutes
+    if setfpscap then
+        pcall(setfpscap, 0) -- 0 = uncapped, in most executors
+    end
+
+    if RunService.Set3dRenderingEnabled then
         pcall(function()
-            gcinfo()
-            collectgarbage("collect")
+            RunService:Set3dRenderingEnabled(true)
         end)
     end
-end)
+end
 
 ---------------------------------------------------------
 -- Configuration Maps & Arrays
@@ -162,6 +180,7 @@ local AutoSellEnabled = false
 local AutoMergeEnabled = false
 local DisplayTagEnabled = false
 local AntiAFKEnabled = false
+local ReduceFPSEnabled = false
 
 -- Webhook Settings
 local WebhookURL = ""
@@ -475,6 +494,19 @@ Tabs.Merge:AddToggle("AutoMergeToggle", { Title = "Auto Merge (Level Up)", Defau
 
 -- TAB 6: EXTRA
 Tabs.Extra:AddToggle("AntiAFKToggle", { Title = "Anti-AFK Disconnect", Default = true, Callback = function(v) AntiAFKEnabled = v end })
+Tabs.Extra:AddToggle("ReduceFPSToggle", {
+    Title = "Reduce FPS (AFK Mode)",
+    Default = false,
+    Callback = function(v)
+        ReduceFPSEnabled = v
+        if v then
+            EnableAFKMode()
+        else
+            RestoreFromAFK()
+        end
+    end
+})
+
 LocalPlayer.Idled:Connect(function() if AntiAFKEnabled then VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end end)
 
 -- TAB 7: VISUALS
