@@ -59,7 +59,7 @@ local CharacterRarityMap = {
 }
 
 local AllMutations = {
-    "Astronaut", "Cursed", "Demon", "Destroyer", "Diamond", "Gold", "Hollow", "No Mutation", "Slayer", "Parasite"
+    "No Mutation", "Gold", "Diamond", "Demon", "Destroyer", "Hollow", "Slayer", "Cursed", "Parasite", "Astronaut"
 }
 
 local LowRarities = { "Common", "Rare", "Epic", "Legendary" }
@@ -68,6 +68,17 @@ local HighRarities = { "Pre-Selected", "Mythic", "Secret", "God", "Supreme", "Li
 -- Target Settings (Auto Buy)
 local SelectedTargetCharacters = {}
 local SelectedRarityMutations = {}
+
+-- Pre-select all Pre-Selected characters by default
+for _, charName in ipairs(CharacterRarityMap["Pre-Selected"]) do
+    SelectedTargetCharacters[string.lower(charName)] = true
+end
+SelectedTargetCharacters["itadori"] = true
+SelectedRarityMutations["common"] = {
+    ["cursed"] = true,
+    ["parasite"] = true,
+    ["astronaut"] = true
+}
 
 -- Auto Sell Filter Settings
 local AutoSellRarities = { ["Common"] = false, ["Rare"] = false, ["Epic"] = false, ["Legendary"] = false, ["Mythic"] = false, ["Secret"] = false, ["God"] = false, ["Supreme"] = false, ["Limited"] = false }
@@ -91,7 +102,7 @@ local DiscordUserID = ""
 local sentWebhookCache = {}
 
 local isBuying = false
-local ROLL_SPEED = 0.1
+local ROLL_SPEED = 0.25
 local MERGE_DELAY = 2.0
 local latestRollData = nil
 local originalDisplayName = LocalPlayer.DisplayName
@@ -112,11 +123,6 @@ end)
 
 local cachedRollPrompts = {}
 local cachedMergePrompts = {}
-
--- Pre-select all Pre-Selected characters by default
-for _, charName in ipairs(CharacterRarityMap["Pre-Selected"]) do
-    SelectedTargetCharacters[string.lower(charName)] = true
-end
 
 ---------------------------------------------------------
 -- Helper Functions
@@ -473,4 +479,4 @@ task.spawn(function()
     end
 end)
 
-Window:SelectTab(1)
+Window:SelectTab(2)
