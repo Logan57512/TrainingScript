@@ -89,6 +89,7 @@ SelectedRarityMutations["god"] = {
 }
 SelectedTargetCharacters["mojuro"] = true
 SelectedTargetCharacters["orochimaru"] = true
+SelectedTargetCharacters["Jiraiya"] = true
 SelectedRarityMutations["secret"] = {
     ["parasite"] = true,
     ["astronaut"] = true
