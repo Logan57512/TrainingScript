@@ -23,6 +23,72 @@ local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 
 ---------------------------------------------------------
+-- ENGINE & RENDERING OPTIMIZATIONS (AFK MODE)
+---------------------------------------------------------
+local function EnableAFKMode()
+    local SetHidden = sethiddenproperty or set_hidden_property
+    
+    -- 1. Cap Framerate to Save CPU/GPU load
+    if setfpscap then
+        pcall(function() setfpscap(10) end)
+    end
+
+    -- 2. Disable 3D Screen Rendering Entirely
+    pcall(function()
+        RunService:Set3dRenderingEnabled(false)
+    end)
+
+    -- 3. Lower Lighting & Visual Effects
+    pcall(function()
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        Lighting.Brightness = 0
+        if SetHidden then
+            pcall(function() SetHidden(Lighting, "Technology", Enum.Technology.Compatibility) end)
+        end
+    end)
+
+    -- 4. Clear Map Visuals & Textures
+    pcall(function()
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                obj.Material = Enum.Material.SmoothPlastic
+                obj.Reflectance = 0
+            elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                obj:Destroy()
+            elseif obj:IsA("PostEffect") or obj:IsA("ParticleEmitter") or obj:IsA("Beam") or obj:IsA("Trail") then
+                obj.Enabled = false
+            end
+        end
+    end)
+
+    -- 5. Mute Audio to Reduce CPU Processing
+    pcall(function()
+        for _, sound in ipairs(workspace: GetDescendants()) do
+            if sound:IsA("Sound") then
+                sound.Volume = 0
+                sound:Stop()
+            end
+        end
+    end)
+end
+
+EnableAFKMode()
+
+---------------------------------------------------------
+-- GARBAGE COLLECTION MEMORY CLEANUP LOOP
+---------------------------------------------------------
+task.spawn(function()
+    while true do
+        task.wait(180) -- Clears Lua garbage memory every 3 minutes
+        pcall(function()
+            gcinfo()
+            collectgarbage("collect")
+        end)
+    end
+end)
+
+---------------------------------------------------------
 -- Configuration Maps & Arrays
 ---------------------------------------------------------
 local CharacterRarityMap = {
@@ -479,4 +545,4 @@ task.spawn(function()
     end
 end)
 
-Window:SelectTab(2)
+Window:SelectTab(1)
