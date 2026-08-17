@@ -1,3 +1,7 @@
+-- loadstring(game:HttpGet("https://raw.githubusercontent.com/Logan57512/TrainingScript/refs/heads/main/AutoAnime"))()
+
+if game.PlaceId ~= 107653945083776 then return end
+
 if getgenv().AutoRollSystem then
     getgenv().AutoRollSystem.Enabled = false
     if getgenv().AutoRollSystem.Connection then
@@ -23,7 +27,7 @@ local LocalPlayer = Players.LocalPlayer
 ---------------------------------------------------------
 local CharacterRarityMap = {
     ["Pre-Selected"] = {
-        "Kaguya", "Naruto Baryon", "Yuji (Modulo)", "Madara", "Madara (Clone)", "Madara (Limbo)", "Madara (Six Path)", "Mojuro", "Kisuke"
+        "Kaguya", "Naruto Baryon", "Yuji (Modulo)", "Madara", "Madara (Clone)", "Madara (Limbo)", "Madara (Six Path)", "Mojuro"
     },
     Common = {
         "Itadori", "Krillin", "Luffy", "Rock Lee", "Ussop", "Zoro"
