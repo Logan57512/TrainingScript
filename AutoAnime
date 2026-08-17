@@ -18,12 +18,141 @@ getgenv().AutoRollSystem = {
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 
----------------------------------------------------------
+-- ENGINE & RENDERING OPTIMIZATIONS (AFK MODE)
+local originalStates = {} -- stores state for RestoreFromAFK()
+
+local AFKEnabled = false
+local AFKProcessing = false
+
+local function EnableAFKMode()
+	if AFKEnabled or AFKProcessing then
+		return
+	end
+
+	AFKProcessing = true
+
+	-- 1. Reduce FPS
+	if setfpscap then
+		pcall(function()
+			setfpscap(10)
+		end)
+	end
+
+
+	-- 2. Disable 3D rendering
+	local renderingDisabled = false
+
+	if RunService.Set3dRenderingEnabled then
+		local success = pcall(function()
+			RunService:Set3dRenderingEnabled(false)
+		end)
+
+		renderingDisabled = success
+	end
+
+	-- 3. Save + reduce lighting
+	pcall(function()
+		originalStates.GlobalShadows = Lighting.GlobalShadows
+		originalStates.FogEnd = Lighting.FogEnd
+		originalStates.Brightness = Lighting.Brightness
+
+		Lighting.GlobalShadows = false
+		Lighting.FogEnd = 9e9
+		Lighting.Brightness = 0
+	end)
+
+	-- 4. Disable expensive visual/audio effects
+	local descendants
+
+	local success = pcall(function()
+		descendants = workspace:GetDescendants()
+	end)
+
+	if success and descendants then
+		local BATCH_SIZE = 500
+
+		for i, obj in ipairs(descendants) do
+			pcall(function()
+				if obj:IsA("ParticleEmitter")
+					or obj:IsA("Beam")
+					or obj:IsA("Trail")
+					or obj:IsA("Smoke")
+					or obj:IsA("Fire")
+					or obj:IsA("Sparkles") then
+
+					obj.Enabled = false
+
+				elseif obj:IsA("PostEffect") then
+					obj.Enabled = false
+
+				elseif obj:IsA("Decal")
+					or obj:IsA("Texture") then
+
+					obj.Transparency = 1
+
+				elseif obj:IsA("Sound") then
+					obj.Volume = 0
+					obj:Stop()
+				end
+			end)
+
+			-- Prevent one massive frame spike
+			if i % BATCH_SIZE == 0 then
+				task.wait()
+			end
+		end
+	end
+
+	AFKEnabled = true
+	AFKProcessing = false
+end
+
+
+local function RestoreFromAFK()
+	if not AFKEnabled then
+		return
+	end
+
+	-- 1. Restore FPS
+	if setfpscap then
+		pcall(function()
+			setfpscap(0)
+		end)
+	end
+
+	-- 2. Re-enable 3D rendering
+	if RunService.Set3dRenderingEnabled then
+		pcall(function()
+			RunService:Set3dRenderingEnabled(true)
+		end)
+	end
+
+	-- 3. Restore lighting
+	pcall(function()
+		if originalStates.GlobalShadows ~= nil then
+			Lighting.GlobalShadows = originalStates.GlobalShadows
+		end
+
+		if originalStates.FogEnd ~= nil then
+			Lighting.FogEnd = originalStates.FogEnd
+		end
+
+		if originalStates.Brightness ~= nil then
+			Lighting.Brightness = originalStates.Brightness
+		end
+	end)
+
+	-- 4. Mark AFK mode as disabled
+	AFKEnabled = false
+	AFKProcessing = false
+end
+
 -- Configuration Maps & Arrays
----------------------------------------------------------
 local CharacterRarityMap = {
     ["Pre-Selected"] = {
         "Kaguya", "Naruto Baryon", "Yuji (Modulo)", "Madara", "Madara (Clone)", "Madara (Limbo)", "Madara (Six Path)", "Mojuro", "JiraiyaFrog", "Dabura", "Yorichi", "Shanks", "Ainz", "Death Knight", "Gojo (Shibuya)", "Doflamingo", "Boros", "Boros v2", "GunDevil", "Goku (Black)", "Sukuna (Heian)", "Muzan", "Muzan (Evolved)", "Aizen (Transcendent)", "Orochimaru"
@@ -94,6 +223,7 @@ local AutoSellEnabled = false
 local AutoMergeEnabled = false
 local DisplayTagEnabled = false
 local AntiAFKEnabled = false
+local ReduceFPSEnabled = true
 
 -- Webhook Settings
 local WebhookURL = ""
@@ -123,9 +253,7 @@ end)
 local cachedRollPrompts = {}
 local cachedMergePrompts = {}
 
----------------------------------------------------------
 -- Helper Functions
----------------------------------------------------------
 local function GetRarityOfCharacter(charName)
     if not charName or charName == "" then return "Unknown" end
     for rarity, list in pairs(CharacterRarityMap) do
@@ -266,9 +394,7 @@ local function isCharacterAndRarityMutationSelected(charName, mutationName)
     return rarityMutations[currentMutation] == true
 end
 
----------------------------------------------------------
 -- Core Execution Logic
----------------------------------------------------------
 local function checkAndBuyFromData(data)
     if not data or not AutoBuyEnabled or isBuying then return end
     local charactersList, rollId, plot = data.charactersList, data.rollId, data.plot
@@ -314,9 +440,7 @@ local function checkAndBuyFromData(data)
     end
 end
 
----------------------------------------------------------
 -- UI Setup (Fluent UI Library - Dropdown Edition)
----------------------------------------------------------
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
 local Window = Fluent:CreateWindow({
@@ -349,9 +473,7 @@ Tabs.Info:AddInput("DiscordIDInput", { Title = "Discord User ID", Default = "", 
 Tabs.Main:AddToggle("AutoSummonToggle", { Title = "Auto Summon", Default = true, Callback = function(v) AutoSummonEnabled = v getgenv().AutoRollSystem.Enabled = v end })
 Tabs.Main:AddToggle("AutoBuyToggle", { Title = "Enable Auto Buy", Default = true, Callback = function(v) AutoBuyEnabled = v if v and latestRollData then isBuying = false checkAndBuyFromData(latestRollData) end end })
 
----------------------------------------------------------
 -- Helper UI Generator: Dropdown Edition
----------------------------------------------------------
 local function CreateDropdownRarityUI(tabTarget, rarityList)
     for _, rarityName in ipairs(rarityList) do
         local charList = CharacterRarityMap[rarityName]
@@ -407,6 +529,19 @@ Tabs.Merge:AddToggle("AutoMergeToggle", { Title = "Auto Merge (Level Up)", Defau
 
 -- TAB 6: EXTRA
 Tabs.Extra:AddToggle("AntiAFKToggle", { Title = "Anti-AFK Disconnect", Default = true, Callback = function(v) AntiAFKEnabled = v end })
+Tabs.Extra:AddToggle("ReduceFPSToggle", {
+    Title = "Reduce FPS (AFK Mode)",
+    Default = true,
+    Callback = function(v)
+        ReduceFPSEnabled = v
+        if v then
+            EnableAFKMode()
+        else
+            RestoreFromAFK()
+        end
+    end
+})
+
 LocalPlayer.Idled:Connect(function() if AntiAFKEnabled then VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end end)
 
 -- TAB 7: VISUALS
