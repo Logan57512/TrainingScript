@@ -496,7 +496,7 @@ Tabs.Merge:AddToggle("AutoMergeToggle", { Title = "Auto Merge (Level Up)", Defau
 Tabs.Extra:AddToggle("AntiAFKToggle", { Title = "Anti-AFK Disconnect", Default = true, Callback = function(v) AntiAFKEnabled = v end })
 Tabs.Extra:AddToggle("ReduceFPSToggle", {
     Title = "Reduce FPS (AFK Mode)",
-    Default = false,
+    Default = true,
     Callback = function(v)
         ReduceFPSEnabled = v
         if v then
