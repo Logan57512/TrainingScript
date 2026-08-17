@@ -27,12 +27,10 @@ if setfpscap then
     end)
 end
 
----------------------------------------------------------
 -- Configuration Maps & Arrays
----------------------------------------------------------
 local CharacterRarityMap = {
     ["Pre-Selected"] = {
-        "Kaguya", "Naruto Baryon", "Yuji (Modulo)", "Madara", "Madara (Clone)", "Madara (Limbo)", "Madara (Six Path)", "Mojuro", "JiraiyaFrog", "Dabura", "Yorichi", "Shanks", "Ainz", "Death Knight", "Gojo (Shibuya)", "Doflamingo", "Boros", "Boros v2", "GunDevil", "Goku (Black)", "Sukuna (Heian)", "Muzan", "Muzan (Evolved)", "Aizen (Transcendent)", "Orochimaru"
+        "Kaguya", "Naruto Baryon"
     },
     Common = {
         "Itadori", "Krillin", "Luffy", "Rock Lee", "Ussop", "Zoro"
@@ -78,6 +76,27 @@ local SelectedRarityMutations = {}
 for _, charName in ipairs(CharacterRarityMap["Pre-Selected"]) do
     SelectedTargetCharacters[string.lower(charName)] = true
 end
+for _, charName in ipairs(CharacterRarityMap["Limited"]) do
+    SelectedTargetCharacters[string.lower(charName)] = true
+end
+for _, charName in ipairs(CharacterRarityMap["God"]) do
+    SelectedTargetCharacters[string.lower(charName)] = true
+end
+SelectedRarityMutations["god"] = {
+    ["cursed"] = true,
+    ["parasite"] = true,
+    ["astronaut"] = true
+}
+SelectedTargetCharacters["mojuro"] = true
+SelectedRarityMutations["secret"] = {
+    ["parasite"] = true,
+    ["astronaut"] = true
+}
+SelectedTargetCharacters["kisuke"] = true
+SelectedRarityMutations["mythic"] = {
+    ["parasite"] = true,
+    ["astronaut"] = true
+}
 SelectedTargetCharacters["itadori"] = true
 SelectedRarityMutations["common"] = {
     ["cursed"] = true,
@@ -129,9 +148,7 @@ end)
 local cachedRollPrompts = {}
 local cachedMergePrompts = {}
 
----------------------------------------------------------
 -- Helper Functions
----------------------------------------------------------
 local function GetRarityOfCharacter(charName)
     if not charName or charName == "" then return "Unknown" end
     for rarity, list in pairs(CharacterRarityMap) do
@@ -272,9 +289,7 @@ local function isCharacterAndRarityMutationSelected(charName, mutationName)
     return rarityMutations[currentMutation] == true
 end
 
----------------------------------------------------------
 -- Core Execution Logic
----------------------------------------------------------
 local function checkAndBuyFromData(data)
     if not data or not AutoBuyEnabled or isBuying then return end
     local charactersList, rollId, plot = data.charactersList, data.rollId, data.plot
@@ -355,9 +370,7 @@ Tabs.Info:AddInput("DiscordIDInput", { Title = "Discord User ID", Default = "", 
 Tabs.Main:AddToggle("AutoSummonToggle", { Title = "Auto Summon", Default = true, Callback = function(v) AutoSummonEnabled = v getgenv().AutoRollSystem.Enabled = v end })
 Tabs.Main:AddToggle("AutoBuyToggle", { Title = "Enable Auto Buy", Default = true, Callback = function(v) AutoBuyEnabled = v if v and latestRollData then isBuying = false checkAndBuyFromData(latestRollData) end end })
 
----------------------------------------------------------
 -- Helper UI Generator: Dropdown Edition
----------------------------------------------------------
 local function CreateDropdownRarityUI(tabTarget, rarityList)
     for _, rarityName in ipairs(rarityList) do
         local charList = CharacterRarityMap[rarityName]
