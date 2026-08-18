@@ -19,6 +19,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
+local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 
 if setfpscap then
@@ -130,6 +131,7 @@ local AutoSellEnabled = false
 local AutoMergeEnabled = false
 local DisplayTagEnabled = false
 local AntiAFKEnabled = false
+local FPSBoostEnabled = true
 
 -- Webhook Settings
 local WebhookURL = ""
@@ -194,6 +196,43 @@ local function GetToolMutation(tool)
     local mutVal = tool:FindFirstChild("Mutation") or tool:FindFirstChild("Buff")
     if mutVal and mutVal:IsA("ValueBase") then return tostring(mutVal.Value) end
     return "No Mutation"
+end
+
+local function ApplyFPSBoost(state)
+    pcall(function()
+        if state then
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 9e9
+            Lighting.Technology = Enum.Technology.Compatibility
+            
+            for _, v in ipairs(Lighting:GetChildren()) do
+                if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") then
+                    v.Enabled = false
+                end
+            end
+
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") then
+                    obj.CastShadow = false
+                    obj.Material = Enum.Material.SmoothPlastic
+                elseif obj:IsA("MeshPart") then
+                    obj.RenderFidelity = Enum.RenderFidelity.Performance
+                elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                    obj.Texture = ""
+                elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") then
+                    obj.Enabled = false
+                end
+            end
+        else
+            Lighting.GlobalShadows = true
+            Lighting.FogEnd = 1000
+            for _, v in ipairs(Lighting:GetChildren()) do
+                if v:IsA("PostEffect") or v:IsA("Atmosphere") then
+                    v.Enabled = true
+                end
+            end
+        end
+    end)
 end
 
 local function SendDiscordWebhook(charName, mutationName, rarity)
@@ -437,6 +476,16 @@ Tabs.Merge:AddToggle("AutoMergeToggle", { Title = "Auto Merge (Level Up)", Defau
 
 -- TAB 6: EXTRA
 Tabs.Extra:AddToggle("AntiAFKToggle", { Title = "Anti-AFK Disconnect", Default = true, Callback = function(v) AntiAFKEnabled = v end })
+Tabs.Extra:AddToggle("FPSBoostToggle", { Title = "FPS Boost", Default = true, Callback = function(v) FPSBoostEnabled = v ApplyFPSBoost(v) end })
+
+-- Apply FPS Boost on initial script execution (since default is true)
+task.spawn(function()
+    task.wait(1)
+    if FPSBoostEnabled then
+        ApplyFPSBoost(true)
+    end
+end)
+
 LocalPlayer.Idled:Connect(function() if AntiAFKEnabled then VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end end)
 
 -- TAB 7: VISUALS
