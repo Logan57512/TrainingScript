@@ -89,11 +89,14 @@ for _, charName in ipairs(CharacterRarityMap["Secret"]) do
     SelectedTargetCharacters[string.lower(charName)] = true
 end
 SelectedRarityMutations["god"] = {
+    ["hollow"] = true,
+    ["slayer"] = true,
     ["cursed"] = true,
     ["parasite"] = true,
     ["astronaut"] = true
 }
 SelectedRarityMutations["secret"] = {
+    ["slayer"] = true,
     ["cursed"] = true,
     ["parasite"] = true,
     ["astronaut"] = true
