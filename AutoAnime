@@ -140,7 +140,6 @@ local AutoSellMutations = {
 local AutoSummonEnabled = true
 local AutoBuyEnabled = true
 local AutoSellEnabled = false
-local AutoMergeEnabled = false
 local DisplayTagEnabled = false
 local AntiAFKEnabled = false
 local FPSBoostEnabled = true
@@ -152,7 +151,6 @@ local sentWebhookCache = {}
 
 local isBuying = false
 local ROLL_SPEED = 0.25
-local MERGE_DELAY = 2.0
 local latestRollData = nil
 local originalDisplayName = LocalPlayer.DisplayName
 
@@ -171,7 +169,6 @@ pcall(function()
 end)
 
 local cachedRollPrompts = {}
-local cachedMergePrompts = {}
 
 -- Helper Functions
 local function GetRarityOfCharacter(charName)
@@ -263,19 +260,9 @@ end
 
 local function RefreshPromptsCache()
     table.clear(cachedRollPrompts)
-    table.clear(cachedMergePrompts)
     for _, prompt in ipairs(workspace:GetDescendants()) do
-        if prompt:IsA("ProximityPrompt") then
-            if prompt.Name == "RollPrompt" then
-                table.insert(cachedRollPrompts, prompt)
-            else
-                local objectText = tostring(prompt.ObjectText):lower()
-                local actionText = tostring(prompt.ActionText):lower()
-                local promptName = tostring(prompt.Name):lower()
-                if actionText:find("level up") or objectText:find("character slot") or promptName:find("levelup") then
-                    table.insert(cachedMergePrompts, prompt)
-                end
-            end
+        if prompt:IsA("ProximityPrompt") and prompt.Name == "RollPrompt" then
+            table.insert(cachedRollPrompts, prompt)
         end
     end
 end
@@ -381,13 +368,12 @@ local Tabs = {
     LowBuy = Window:AddTab({ Title = "Buy: Low", Icon = "shield" }),
     HighBuy = Window:AddTab({ Title = "Buy: High", Icon = "zap" }),
     Sell = Window:AddTab({ Title = "Sell", Icon = "trash-2" }),
-    Merge = Window:AddTab({ Title = "Merge", Icon = "layers" }),
     Extra = Window:AddTab({ Title = "Extra", Icon = "cpu" }),
     Visuals = Window:AddTab({ Title = "Visuals", Icon = "eye" })
 }
 
 -- TAB 0: INFO
-Tabs.Info:AddParagraph({ Title = "Senzy Hub Information", Content = "Welcome to Senzy Hub! Automated rolling, buying, selling, and merging utility." })
+Tabs.Info:AddParagraph({ Title = "Senzy Hub Information", Content = "Welcome to Senzy Hub! Automated rolling, buying, and selling utility." })
 Tabs.Info:AddInput("WebhookURLInput", { Title = "Webhook URL", Default = "", Placeholder = "https://discord.com/api/webhooks/...", Finished = true, Callback = function(v) WebhookURL = v end })
 Tabs.Info:AddInput("DiscordIDInput", { Title = "Discord User ID", Default = "", Placeholder = "Enter User ID for tags", Finished = true, Callback = function(v) DiscordUserID = v end })
 
@@ -446,15 +432,12 @@ for _, rarity in ipairs({ "Common", "Rare", "Epic", "Legendary", "Mythic", "Secr
     Tabs.Sell:AddToggle("SellRarity_" .. rarity, { Title = "Sell Rarity: " .. rarity, Default = false, Callback = function(v) AutoSellRarities[rarity] = v end })
 end
 
--- TAB 5: MERGE
-Tabs.Merge:AddToggle("AutoMergeToggle", { Title = "Auto Merge (Level Up)", Default = false, Callback = function(v) AutoMergeEnabled = v end })
-
--- TAB 6: EXTRA
+-- TAB 5: EXTRA
 Tabs.Extra:AddToggle("AntiAFKToggle", { Title = "Anti-AFK Disconnect", Default = true, Callback = function(v) AntiAFKEnabled = v end })
 Tabs.Extra:AddToggle("FPSBoostToggle", { Title = "FPS Boost", Default = true, Callback = function(v) FPSBoostEnabled = v SetFPSBoost(v) end })
 LocalPlayer.Idled:Connect(function() if AntiAFKEnabled then VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end end)
 
--- TAB 7: VISUALS
+-- TAB 6: VISUALS
 Tabs.Visuals:AddToggle("CustomNameTagToggle", { Title = "Enable Custom Name Tag", Default = false, Callback = function(v) DisplayTagEnabled = v if LocalPlayer.Character then 
     local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
     if hum then hum.DisplayName = v and "SENZY HUB ON TOP" or originalDisplayName end
@@ -509,17 +492,6 @@ task.spawn(function()
             end
         end
         task.wait(ROLL_SPEED)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if AutoMergeEnabled then
-            for _, prompt in ipairs(cachedMergePrompts) do
-                if prompt and prompt.Parent then pcall(function() if fireproximityprompt then fireproximityprompt(prompt, 0) end end) end
-            end
-        end
-        task.wait(MERGE_DELAY)
     end
 end)
 
