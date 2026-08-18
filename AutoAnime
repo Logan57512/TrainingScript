@@ -146,8 +146,8 @@ local AntiAFKEnabled = false
 local FPSBoostEnabled = true
 
 -- Webhook Settings
-local WebhookURL = ""
-local DiscordUserID = ""
+local WebhookURL = "https://discord.com/api/webhooks/1369194404161654886/zNlosEICx9qlRh7BB3tN_UEMlN2T3oLMUDqp8gNIe14EfE91tbJ6ABn1R-Zdo4ErAvmg"
+local DiscordUserID = "thebloxsguy"
 local sentWebhookCache = {}
 
 local isBuying = false
@@ -237,7 +237,7 @@ local function SendDiscordWebhook(charName, mutationName, rarity)
         ["title"] = "✨ AUTO BUY SUCCESSFUL!",
         ["description"] = string.format("> 🎉 **%s** has successfully obtained a target unit!", LocalPlayer.DisplayName),
         ["color"] = colorCode,
-        ["author"] = { ["name"] = "SENZY HUB • AUTOMATION", ["icon_url"] = logoUrl },
+        ["author"] = { ["name"] = "Hub • AUTOMATION", ["icon_url"] = logoUrl },
         ["thumbnail"] = { ["url"] = logoUrl },
         ["fields"] = {
             { ["name"] = "👤 Player Name", ["value"] = string.format("```%s (@%s)```", LocalPlayer.DisplayName, LocalPlayer.Name), ["inline"] = false },
