@@ -99,6 +99,7 @@ SelectedRarityMutations["secret"] = {
     ["astronaut"] = true
 }
 SelectedTargetCharacters["kisuke"] = true
+SelectedTargetCharacters["kakashi"] = true
 SelectedRarityMutations["mythic"] = {
     ["cursed"] = true,
     ["parasite"] = true,
