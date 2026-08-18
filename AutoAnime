@@ -111,9 +111,13 @@ SelectedRarityMutations["legendary"] = {
     ["parasite"] = true,
     ["astronaut"] = true
 }
+SelectedTargetCharacters["sakura"] = true
+SelectedRarityMutations["rare"] = {
+    ["parasite"] = true,
+    ["astronaut"] = true
+}
 SelectedTargetCharacters["itadori"] = true
 SelectedRarityMutations["common"] = {
-    ["cursed"] = true,
     ["parasite"] = true,
     ["astronaut"] = true
 }
