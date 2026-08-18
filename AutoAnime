@@ -90,12 +90,15 @@ SelectedRarityMutations["god"] = {
 SelectedTargetCharacters["mojuro"] = true
 SelectedTargetCharacters["orochimaru"] = true
 SelectedTargetCharacters["Jiraiya"] = true
+SelectedTargetCharacters["Tsunade"] = true
 SelectedRarityMutations["secret"] = {
+    ["cursed"] = true,
     ["parasite"] = true,
     ["astronaut"] = true
 }
 SelectedTargetCharacters["kisuke"] = true
 SelectedRarityMutations["mythic"] = {
+    ["cursed"] = true,
     ["parasite"] = true,
     ["astronaut"] = true
 }
