@@ -33,7 +33,7 @@ SetFPSBoost(FPSBoostEnabled)
 -- Configuration Maps & Arrays
 local CharacterRarityMap = {
     ["Pre-Selected"] = {
-        "Kaguya", "Naruto Baryon"
+        "Kaguya", "Naruto Baryon", "Mojuro"
     },
     Common = {
         "Itadori", "Krillin", "Luffy", "Rock Lee", "Ussop", "Zoro"
