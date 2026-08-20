@@ -28,6 +28,7 @@ local function SetFPSBoost(enabled)
         end)
     end
 end
+SetFPSBoost(FPSBoostEnabled)
 
 -- Configuration Maps & Arrays
 local CharacterRarityMap = {
@@ -361,60 +362,35 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.LeftControl
 })
 
--- added: Mobile toggle square frame that moves UI off-screen and back on-screen
-local UIS = game:GetService("UserInputService")
-if UIS.TouchEnabled then
-    local MobileGui = Instance.new("ScreenGui")
-    MobileGui.Name = "MobileUIToggle"
-    MobileGui.ResetOnSpawn = false
-    pcall(function() MobileGui.Parent = gethui() or game:GetService("CoreGui") end)
+-- Mobile UI Toggle
+if UserInputService.TouchEnabled then
+    local MobileToggleButton = Instance.new("TextButton")
+    MobileToggleButton.Name = "MobileToggleButton"
+    MobileToggleButton.Size = UDim2.fromOffset(50, 50)
+    MobileToggleButton.Position = UDim2.new(0, 15, 1, -15)
+    MobileToggleButton.AnchorPoint = Vector2.new(0, 1)
+    MobileToggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    MobileToggleButton.BackgroundTransparency = 0.15
+    MobileToggleButton.Text = "☰"
+    MobileToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    MobileToggleButton.TextSize = 24
+    MobileToggleButton.Font = Enum.Font.GothamBold
+    MobileToggleButton.ZIndex = 100
+    MobileToggleButton.Parent = Fluent.GUI
 
-    local MobileToggleBtn = Instance.new("TextButton")
-    MobileToggleBtn.Size = UDim2.new(0, 45, 0, 45)
-    MobileToggleBtn.Position = UDim2.new(0, 15, 0.5, -20)
-    MobileToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    MobileToggleBtn.BorderColor3 = Color3.fromRGB(60, 60, 60)
-    MobileToggleBtn.BorderSizePixel = 2
-    MobileToggleBtn.Text = "UI"
-    MobileToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    MobileToggleBtn.Font = Enum.Font.Code
-    MobileToggleBtn.TextSize = 16
-    MobileToggleBtn.Parent = MobileGui
+    local MobileToggleCorner = Instance.new("UICorner")
+    MobileToggleCorner.CornerRadius = UDim.new(0, 10)
+    MobileToggleCorner.Parent = MobileToggleButton
 
-    local dragging, dragStart, startPos = false, nil, nil
-    MobileToggleBtn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = MobileToggleBtn.Position
-        end
-    end)
-    MobileToggleBtn.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
-    end)
-    MobileToggleBtn.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
-            local delta = input.Position - dragStart
-            MobileToggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
+    MobileToggleButton.Activated:Connect(function()
+        Window.Minimized = not Window.Minimized
+        Window.Root.Visible = not Window.Minimized
     end)
 
-    local isOffscreen = false
-    MobileToggleBtn.MouseButton1Click:Connect(function()
-        local windowFrame = Window.Root or (Window.Frame)
-        if windowFrame then
-            isOffscreen = not isOffscreen
-            if isOffscreen then
-                windowFrame.Position = UDim2.new(2, 0, 0.5, -230) -- changed: move UI menu out of screen
-            else
-                windowFrame.Position = UDim2.new(0.5, -290, 0.5, -230) -- changed: move UI menu back to center of screen
-            end
-        end
-    end)
+    -- Start with the main UI menu hidden on mobile.
+    Window.Minimized = true
+    Window.Root.Visible = false
 end
--- added: end
 
 local Tabs = {
     Info = Window:AddTab({ Title = "Information", Icon = "info" }),
@@ -549,5 +525,4 @@ task.spawn(function()
     end
 end)
 
-SetFPSBoost(FPSBoostEnabled)
 Window:SelectTab(1)
