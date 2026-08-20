@@ -401,7 +401,7 @@ if UIS.TouchEnabled then
         end
     end)
 
-    local isOffscreen = true
+    local isOffscreen = false
     MobileToggleBtn.MouseButton1Click:Connect(function()
         local windowFrame = Window.Root or (Window.Frame)
         if windowFrame then
@@ -551,3 +551,4 @@ end)
 
 SetFPSBoost(FPSBoostEnabled)
 Window:SelectTab(1)
+Window.Root.Position = UDim2.new(2, 0, 0.5, -230)
