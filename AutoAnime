@@ -28,7 +28,6 @@ local function SetFPSBoost(enabled)
         end)
     end
 end
-SetFPSBoost(FPSBoostEnabled)
 
 -- Configuration Maps & Arrays
 local CharacterRarityMap = {
@@ -556,4 +555,5 @@ task.spawn(function()
     end
 end)
 
+SetFPSBoost(FPSBoostEnabled)
 Window:SelectTab(1)
