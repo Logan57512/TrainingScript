@@ -24,7 +24,7 @@ local LocalPlayer = Players.LocalPlayer
 local function SetFPSBoost(enabled)
     if setfpscap then
         pcall(function()
-            setfpscap(enabled and 10 or 0)
+            setfpscap(enabled and 5 or 0)
         end)
     end
 end
