@@ -371,7 +371,7 @@ if UIS.TouchEnabled then
 
     local MobileToggleBtn = Instance.new("TextButton")
     MobileToggleBtn.Size = UDim2.new(0, 45, 0, 45)
-    MobileToggleBtn.Position = UDim2.new(0, 10, 1, -10)
+    MobileToggleBtn.Position = UDim2.new(0.05, 0, 0.85, 0)
     MobileToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     MobileToggleBtn.BorderColor3 = Color3.fromRGB(60, 60, 60)
     MobileToggleBtn.BorderSizePixel = 2
