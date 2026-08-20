@@ -362,6 +362,56 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.LeftControl
 })
 
+-- added: Mobile toggle square frame to reopen UI for users without keyboards
+local UIS = game:GetService("UserInputService")
+if UIS.TouchEnabled then
+    local MobileGui = Instance.new("ScreenGui")
+    MobileGui.Name = "MobileUIToggle"
+    MobileGui.ResetOnSpawn = false
+    pcall(function() MobileGui.Parent = gethui() or game:GetService("CoreGui") end)
+
+    local MobileToggleBtn = Instance.new("TextButton")
+    MobileToggleBtn.Size = UDim2.new(0, 45, 0, 45)
+    MobileToggleBtn.Position = UDim2.new(0, 15, 0.5, -20)
+    MobileToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    MobileToggleBtn.BorderColor3 = Color3.fromRGB(60, 60, 60)
+    MobileToggleBtn.BorderSizePixel = 2
+    MobileToggleBtn.Text = "UI"
+    MobileToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    MobileToggleBtn.Font = Enum.Font.Code
+    MobileToggleBtn.TextSize = 16
+    MobileToggleBtn.Parent = MobileGui
+
+    local dragging, dragStart, startPos = false, nil, nil
+    MobileToggleBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = MobileToggleBtn.Position
+        end
+    end)
+    MobileToggleBtn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    MobileToggleBtn.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+            local delta = input.Position - dragStart
+            MobileToggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    MobileToggleBtn.MouseButton1Click:Connect(function()
+        pcall(function()
+            local vim = game:GetService("VirtualInputManager")
+            vim:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game)
+            task.wait()
+            vim:SendKeyEvent(false, Enum.KeyCode.LeftControl, false, game)
+        end)
+    end)
+end
+-- added: end
+
 local Tabs = {
     Info = Window:AddTab({ Title = "Information", Icon = "info" }),
     Main = Window:AddTab({ Title = "Main", Icon = "play" }),
@@ -435,7 +485,18 @@ end
 -- TAB 5: EXTRA
 Tabs.Extra:AddToggle("AntiAFKToggle", { Title = "Anti-AFK Disconnect", Default = true, Callback = function(v) AntiAFKEnabled = v end })
 Tabs.Extra:AddToggle("FPSBoostToggle", { Title = "FPS Boost", Default = true, Callback = function(v) FPSBoostEnabled = v SetFPSBoost(v) end })
-LocalPlayer.Idled:Connect(function() if AntiAFKEnabled then VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end end)
+
+-- added: 20 FPS Cap toggle initially off
+Tabs.Extra:AddToggle("FPSCap20Toggle", { 
+    Title = "FPS Cap (20)", 
+    Default = false, 
+    Callback = function(v) 
+        if setfpscap then 
+            pcall(function() setfpscap(v and 20 or 0) end) 
+        end 
+    end 
+})
+-- added: end
 
 -- TAB 6: VISUALS
 Tabs.Visuals:AddToggle("CustomNameTagToggle", { Title = "Enable Custom Name Tag", Default = false, Callback = function(v) DisplayTagEnabled = v if LocalPlayer.Character then 
