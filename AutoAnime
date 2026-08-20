@@ -140,7 +140,6 @@ local AutoSummonEnabled = true
 local AutoBuyEnabled = true
 local AutoSellEnabled = false
 local DisplayTagEnabled = false
-local AntiAFKEnabled = false
 local FPSBoostEnabled = true
 
 -- Webhook Settings
@@ -371,7 +370,7 @@ if UIS.TouchEnabled then
 
     local MobileToggleBtn = Instance.new("TextButton")
     MobileToggleBtn.Size = UDim2.new(0, 45, 0, 45)
-    MobileToggleBtn.Position = UDim2.new(0.05, 0, 0.85, 0)
+    MobileToggleBtn.Position = UDim2.new(0.95, 0, 0.85, 0)
     MobileToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     MobileToggleBtn.BorderColor3 = Color3.fromRGB(60, 60, 60)
     MobileToggleBtn.BorderSizePixel = 2
@@ -487,9 +486,17 @@ for _, rarity in ipairs({ "Common", "Rare", "Epic", "Legendary", "Mythic", "Secr
 end
 
 -- TAB 5: EXTRA
-Tabs.Extra:AddToggle("AntiAFKToggle", { Title = "Anti-AFK Disconnect", Default = true, Callback = function(v) AntiAFKEnabled = v end })
 Tabs.Extra:AddToggle("FPSBoostToggle", { Title = "FPS Boost", Default = true, Callback = function(v) FPSBoostEnabled = v SetFPSBoost(v) end })
-LocalPlayer.Idled:Connect(function() if AntiAFKEnabled then VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end end)
+-- added: 20 FPS Cap toggle initially off
+Tabs.Extra:AddToggle("FPSCap20Toggle", { 
+    Title = "FPS Cap (20)", 
+    Default = false, 
+    Callback = function(v) 
+        if setfpscap then 
+            pcall(function() setfpscap(v and 20 or 0) end) 
+        end 
+    end 
+})
 
 -- TAB 6: VISUALS
 Tabs.Visuals:AddToggle("CustomNameTagToggle", { Title = "Enable Custom Name Tag", Default = false, Callback = function(v) DisplayTagEnabled = v if LocalPlayer.Character then 
@@ -549,6 +556,6 @@ task.spawn(function()
     end
 end)
 
-SetFPSBoost(FPSBoostEnabled)
 Window:SelectTab(1)
+SetFPSBoost(FPSBoostEnabled)
 Window.Root.Position = UDim2.new(2, 0, 0.5, -230)
