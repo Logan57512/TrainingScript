@@ -361,7 +361,7 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.LeftControl
 })
 
--- added: Mobile toggle square frame to reopen UI for users without keyboards
+-- added: Mobile toggle square frame that moves UI off-screen and back on-screen
 local UIS = game:GetService("UserInputService")
 if UIS.TouchEnabled then
     local MobileGui = Instance.new("ScreenGui")
@@ -400,13 +400,18 @@ if UIS.TouchEnabled then
             MobileToggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
     end)
+
+    local isOffscreen = false
     MobileToggleBtn.MouseButton1Click:Connect(function()
-        pcall(function()
-            local vim = game:GetService("VirtualInputManager")
-            vim:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game)
-            task.wait()
-            vim:SendKeyEvent(false, Enum.KeyCode.LeftControl, false, game)
-        end)
+        local windowFrame = Window.Root or (Window.Frame)
+        if windowFrame then
+            isOffscreen = not isOffscreen
+            if isOffscreen then
+                windowFrame.Position = UDim2.new(2, 0, 0.5, -230) -- changed: move UI menu out of screen
+            else
+                windowFrame.Position = UDim2.new(0.5, -290, 0.5, -230) -- changed: move UI menu back to center of screen
+            end
+        end
     end)
 end
 -- added: end
@@ -484,18 +489,7 @@ end
 -- TAB 5: EXTRA
 Tabs.Extra:AddToggle("AntiAFKToggle", { Title = "Anti-AFK Disconnect", Default = true, Callback = function(v) AntiAFKEnabled = v end })
 Tabs.Extra:AddToggle("FPSBoostToggle", { Title = "FPS Boost", Default = true, Callback = function(v) FPSBoostEnabled = v SetFPSBoost(v) end })
-
--- added: 20 FPS Cap toggle initially off
-Tabs.Extra:AddToggle("FPSCap20Toggle", { 
-    Title = "FPS Cap (20)", 
-    Default = false, 
-    Callback = function(v) 
-        if setfpscap then 
-            pcall(function() setfpscap(v and 20 or 0) end) 
-        end 
-    end 
-})
--- added: end
+LocalPlayer.Idled:Connect(function() if AntiAFKEnabled then VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end end)
 
 -- TAB 6: VISUALS
 Tabs.Visuals:AddToggle("CustomNameTagToggle", { Title = "Enable Custom Name Tag", Default = false, Callback = function(v) DisplayTagEnabled = v if LocalPlayer.Character then 
