@@ -149,7 +149,7 @@ local FPSBoostEnabled = true
 
 -- Auto Clone State
 local FastAutoCloneEnabled = false
-local AFKAutoCloneEnabled = false
+local AFKAutoCloneEnabled = true
 local CloneTarget = "Junwoo"
 local CurrentCloningUUID = nil
 
@@ -504,13 +504,13 @@ Tabs.Main:AddToggle("FastAutoCloneToggle", {
     Description = "Rapidly claims and starts cloning",
     Default = false,
     Callback = function(v) 
-        FastAutoCloneEnabled = v 
+        FastAutoCloneEnabled = v
     end
 })
 Tabs.Main:AddToggle("AFKAutoCloneToggle", {
     Title = "AFK Auto Clone",
     Description = "Slower claiming/cloning to reduce lag",
-    Default = false,
+    Default = true,
     Callback = function(v) 
         AFKAutoCloneEnabled = v 
     end
@@ -643,7 +643,7 @@ task.spawn(function()
     while true do
         if FastAutoCloneEnabled or AFKAutoCloneEnabled then
             -- Assign speed based on which is enabled
-            local delayTime = FastAutoCloneEnabled and 0.15 or 3.0
+            local delayTime = FastAutoCloneEnabled and 0.1 or 15.0
             
             pcall(function()
                 local CloneRemote = ReplicatedStorage.Remotes.CloneRemotes.Request
