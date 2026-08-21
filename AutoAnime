@@ -88,16 +88,12 @@ for _, charName in ipairs(CharacterRarityMap["Secret"]) do
     SelectedTargetCharacters[string.lower(charName)] = true
 end
 SelectedRarityMutations["god"] = {
-    ["destroyer"] = true,
-    ["hollow"] = true,
     ["slayer"] = true,
     ["cursed"] = true,
     ["parasite"] = true,
     ["astronaut"] = true
 }
 SelectedRarityMutations["secret"] = {
-    ["hollow"] = true,
-    ["slayer"] = true,
     ["cursed"] = true,
     ["parasite"] = true,
     ["astronaut"] = true
@@ -105,8 +101,6 @@ SelectedRarityMutations["secret"] = {
 SelectedTargetCharacters["kisuke"] = true
 SelectedTargetCharacters["kakashi"] = true
 SelectedRarityMutations["mythic"] = {
-    ["slayer"] = true,
-    ["cursed"] = true,
     ["parasite"] = true,
     ["astronaut"] = true
 }
@@ -117,6 +111,7 @@ SelectedRarityMutations["legendary"] = {
     ["astronaut"] = true
 }
 SelectedTargetCharacters["sakura"] = true
+SelectedTargetCharacters["junwoo"] = true
 SelectedRarityMutations["rare"] = {
     ["parasite"] = true,
     ["astronaut"] = true
@@ -558,3 +553,4 @@ end)
 Window:SelectTab(1)
 SetFPSBoost(FPSBoostEnabled)
 Window.Root.Position = UDim2.new(2, 0, 0.5, -230)
+local Event = ReplicatedStorage.Remotes.ClaimVIPEvent:FireServer("Claim")
