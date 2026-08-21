@@ -354,7 +354,7 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.LeftControl
 })
 
--- added: Mobile toggle square frame that moves UI off-screen and back on-screen
+-- Mobile toggle square frame that moves UI off-screen and back on-screen
 local UIS = game:GetService("UserInputService")
 if UIS.TouchEnabled then
     local MobileGui = Instance.new("ScreenGui")
@@ -394,15 +394,15 @@ if UIS.TouchEnabled then
         end
     end)
 
-    local isOffscreen = false
+    local isOffscreen = true
     MobileToggleBtn.MouseButton1Click:Connect(function()
         local windowFrame = Window.Root or (Window.Frame)
         if windowFrame then
             isOffscreen = not isOffscreen
             if isOffscreen then
-                windowFrame.Position = UDim2.new(2, 0, 0.5, -230) -- changed: move UI menu out of screen
+                windowFrame.Position = UDim2.new(2, 0, 0.5, -230) -- Move UI menu out of screen
             else
-                windowFrame.Position = UDim2.new(0.5, -290, 0.5, -230) -- changed: move UI menu back to center of screen
+                windowFrame.Position = UDim2.new(0.5, -290, 0.5, -230) -- Move UI menu back to center of screen
             end
         end
     end)
