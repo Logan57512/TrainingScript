@@ -1,6 +1,6 @@
 -- loadstring(game:HttpGet("https://raw.githubusercontent.com/Logan57512/TrainingScript/refs/heads/main/AutoAnime"))()
 
-if game.PlaceId ~= 107653945083776 then return end
+if game.PlaceId ~= 107653945083776 or 133623616308412 then return end
 
 if getgenv().AutoRollSystem then
     getgenv().AutoRollSystem.Enabled = false
@@ -107,13 +107,11 @@ SelectedRarityMutations["mythic"] = {
 SelectedTargetCharacters["gojo"] = true
 SelectedTargetCharacters["naruto"] = true
 SelectedRarityMutations["legendary"] = {
-    ["parasite"] = true,
     ["astronaut"] = true
 }
 SelectedTargetCharacters["sakura"] = true
 SelectedTargetCharacters["junwoo"] = true
 SelectedRarityMutations["rare"] = {
-    ["parasite"] = true,
     ["astronaut"] = true
 }
 SelectedTargetCharacters["itadori"] = true
