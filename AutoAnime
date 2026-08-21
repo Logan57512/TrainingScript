@@ -129,8 +129,8 @@ SelectedRarityMutations["mythic"] = {
     ["astronaut"] = true
 }
 SelectedTargetCharacters["gojo"] = true
-SelectedTargetCharacters["naruto"] = true
 SelectedRarityMutations["legendary"] = {
+    ["parasite"] = true,
     ["astronaut"] = true
 }
 SelectedTargetCharacters["sakura"] = true
