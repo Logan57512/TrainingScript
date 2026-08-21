@@ -211,13 +211,16 @@ local function SendDiscordWebhook(charName, mutationName, rarity)
 
     local mentionText = (DiscordUserID ~= "" and DiscordUserID:match("%d+")) and ("<@" .. DiscordUserID:match("%d+") .. ">") or ""
     local colorCode = 0x2B2D31
-    if rarity == "Supreme" then colorCode = 0xFF0000
-    elseif rarity == "God" then colorCode = 0xFF0055
-    elseif rarity == "Secret" then colorCode = 0xA020F0
-    elseif rarity == "Limited" then colorCode = 0x00FFFF
-    elseif rarity == "Mythic" then colorCode = 0xFF6600
-    elseif rarity == "Legendary" then colorCode = 0xFFD700
-    elseif rarity == "Epic" then colorCode = 0x9370DB end
+    if rarity == "Supreme" then colorCode = 0x8B0000 -- Dark Crimson
+    elseif rarity == "God" then colorCode = 0xFF0000 -- Red
+    elseif rarity == "Secret" then colorCode = 0x111111 -- Black
+    elseif rarity == "Limited" then colorCode = 0x00FFFF -- Cyan
+    elseif rarity == "Mythic" then colorCode = 0xFF6600 -- Orange
+    elseif rarity == "Legendary" then colorCode = 0xFFD700 -- Gold / Yellow
+    elseif rarity == "Epic" then colorCode = 0x9932CC -- Purple
+    elseif rarity == "Rare" then colorCode = 0x1E90FF -- Blue
+    elseif rarity == "Common" then colorCode = 0x808080 -- Grey
+    end
 
     local playerAvatarUrl = string.format("https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=420&height=420&format=png", LocalPlayer.UserId)
     local logoUrl = "https://raw.githubusercontent.com/senzxyz2xxx/Ui/refs/heads/main/senz2.png"
@@ -345,7 +348,7 @@ end
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
 local Window = Fluent:CreateWindow({
-    Title = "Senzy Hub | Roll Anime to Fight",
+    Title = "Roll Anime to Fight",
     SubTitle = "v6.5 - Dropdown Edition",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
