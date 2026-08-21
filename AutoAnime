@@ -481,15 +481,13 @@ if UIS.TouchEnabled then
 end
 -- added: end
 
-local Tabs = {
-    Info = Window:AddTab({ Title = "Information", Icon = "info" }),
-    Main = Window:AddTab({ Title = "Main", Icon = "play" }),
-    LowBuy = Window:AddTab({ Title = "Buy: Low", Icon = "shield" }),
-    HighBuy = Window:AddTab({ Title = "Buy: High", Icon = "zap" }),
-    Sell = Window:AddTab({ Title = "Sell", Icon = "trash-2" }),
-    Extra = Window:AddTab({ Title = "Extra", Icon = "cpu" }),
-    Visuals = Window:AddTab({ Title = "Visuals", Icon = "eye" })
-}
+local Tabs = {}
+Tabs.Main = Window:AddTab({ Title = "Main", Icon = "play" })
+Tabs.LowBuy = Window:AddTab({ Title = "Buy: Low", Icon = "shield" })
+Tabs.HighBuy = Window:AddTab({ Title = "Buy: High", Icon = "zap" })
+Tabs.Sell = Window:AddTab({ Title = "Sell", Icon = "trash-2" })
+Tabs.Extra = Window:AddTab({ Title = "Extra", Icon = "cpu" })
+Info = Window:AddTab({ Title = "Information", Icon = "info" }),
 
 -- TAB 0: INFO
 Tabs.Info:AddParagraph({ Title = "Senzy Hub Information", Content = "Welcome to Senzy Hub! Automated rolling, buying, and selling utility." })
@@ -591,12 +589,6 @@ Tabs.Extra:AddToggle("FPSCap20Toggle", {
     end 
 })
 
--- TAB 6: VISUALS
-Tabs.Visuals:AddToggle("CustomNameTagToggle", { Title = "Enable Custom Name Tag", Default = false, Callback = function(v) DisplayTagEnabled = v if LocalPlayer.Character then 
-    local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
-    if hum then hum.DisplayName = v and "SENZY HUB ON TOP" or originalDisplayName end
-end end })
-
 -- Loops
 task.spawn(function()
     if RollRemote then
@@ -654,7 +646,7 @@ task.spawn(function()
     while true do
         if FastAutoCloneEnabled or AFKAutoCloneEnabled then
             -- Assign speed based on which is enabled
-            local delayTime = FastAutoCloneEnabled and 0.1 or 15.0
+            local delayTime = FastAutoCloneEnabled and 0.1 or 20.0
             
             pcall(function()
                 local CloneRemote = ReplicatedStorage.Remotes.CloneRemotes.Request
