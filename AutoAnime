@@ -32,7 +32,7 @@ end
 -- Configuration Maps & Arrays
 local CharacterRarityMap = {
     ["Pre-Selected"] = {
-        "Kaguya", "Naruto Baryon", "Mojuro"
+        "Kaguya", "Naruto Baryon", "Mojuro", "Orochimaru"
     },
     Common = {
         "Itadori", "Krillin", "Luffy", "Rock Lee", "Ussop", "Zoro"
@@ -342,7 +342,7 @@ local function isCharacterAndRarityMutationSelected(charName, mutationName)
     local currentMutation = string.lower(tostring(mutationName or "No Mutation"))
     
     -- Check if Pre-Selected tab has specific mutation preferences set
-    local preSelectedMutations = SelectedRarityMutations["pre-selected"] or {}
+    local preSelectedMutations = SelectedRarityMutations["Pre-Selected"] or {}
     local hasPreSelectedMutations = false
     for _, isSelected in pairs(preSelectedMutations) do
         if isSelected == true then hasPreSelectedMutations = true; break end
