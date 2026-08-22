@@ -67,19 +67,6 @@ local AllMutations = {
     "No Mutation", "Gold", "Diamond", "Demon", "Destroyer", "Hollow", "Slayer", "Cursed", "Parasite", "Astronaut"
 }
 
--- Clone System Ranking Maps
-local CloneMutationRanks = {
-    ["no mutation"] = 0,
-    ["gold"] = 1,
-    ["diamond"] = 2,
-    ["demon"] = 3,
-    ["destroyer"] = 4,
-    ["hollow"] = 5,
-    ["slayer"] = 6,
-    ["cursed"] = 7,
-    ["parasite"] = 8
-}
-
 local LowRarities = { "Common", "Rare", "Epic", "Legendary" }
 local HighRarities = { "Pre-Selected", "Mythic", "Secret", "God", "Supreme", "Limited" }
 
@@ -100,11 +87,12 @@ end
 for _, charName in ipairs(CharacterRarityMap["Secret"]) do
     SelectedTargetCharacters[string.lower(charName)] = true
 end
-SelectedRarityMutations["Pre-Selected"] = {
+SelectedRarityMutations["god"] = {
     ["no mutation"] = true,
     ["gold"] = true,
     ["diamond"] = true,
     ["demon"] = true,
+    ["destroyer"] = true,
     ["hollow"] = true,
     ["slayer"] = true,
     ["cursed"] = true,
@@ -129,8 +117,8 @@ SelectedRarityMutations["mythic"] = {
     ["astronaut"] = true
 }
 SelectedTargetCharacters["gojo"] = true
+SelectedTargetCharacters["naruto"] = true
 SelectedRarityMutations["legendary"] = {
-    ["parasite"] = true,
     ["astronaut"] = true
 }
 SelectedTargetCharacters["sakura"] = true
@@ -157,12 +145,6 @@ local AutoBuyEnabled = true
 local AutoSellEnabled = false
 local DisplayTagEnabled = false
 local FPSBoostEnabled = true
-
--- Auto Clone State
-local FastAutoCloneEnabled = false
-local AFKAutoCloneEnabled = true
-local CloneTarget = "Junwoo"
-local CurrentCloningUUID = nil
 
 -- Webhook Settings
 local WebhookURL = "https://discord.com/api/webhooks/1369194404161654886/zNlosEICx9qlRh7BB3tN_UEMlN2T3oLMUDqp8gNIe14EfE91tbJ6ABn1R-Zdo4ErAvmg"
@@ -206,13 +188,12 @@ local function GetRarityOfCharacter(charName)
 end
 
 local function GetToolUUID(tool)
-    -- Added UDID support as well just in case
-    local uuid = tool:GetAttribute("UUID") or tool:GetAttribute("uuid") or tool:GetAttribute("UDID") or tool:GetAttribute("ID") or tool:GetAttribute("Id")
+    local uuid = tool:GetAttribute("UUID") or tool:GetAttribute("uuid") or tool:GetAttribute("ID") or tool:GetAttribute("Id")
     if uuid then return tostring(uuid) end
     for _, child in ipairs(tool:GetChildren()) do
         if child:IsA("ValueBase") then
             local cName = string.lower(child.Name)
-            if cName:find("uuid") or cName:find("udid") or cName:find("guid") or cName:find("id") then
+            if cName:find("uuid") or cName:find("guid") or cName:find("id") then
                 return tostring(child.Value)
             end
         end
@@ -226,46 +207,6 @@ local function GetToolMutation(tool)
     local mutVal = tool:FindFirstChild("Mutation") or tool:FindFirstChild("Buff")
     if mutVal and mutVal:IsA("ValueBase") then return tostring(mutVal.Value) end
     return "No Mutation"
-end
-
-local function GetBestCloneUUID(targetName)
-    local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if not backpack then return nil end
-
-    local bestTool = nil
-    local bestRank = -1
-    local bestLevel = -1
-
-    for _, item in ipairs(backpack:GetChildren()) do
-        if item:IsA("Tool") and string.lower(item.Name) == string.lower(targetName) then
-            -- Determine Mutation Rank
-            local mut = GetToolMutation(item)
-            local mutName = string.lower(mut)
-            local rank = CloneMutationRanks[mutName] or 0
-
-            -- Determine Level
-            local level = tonumber(item:GetAttribute("Level") or item:GetAttribute("level"))
-            if not level then
-                local lvlVal = item:FindFirstChild("Level") or item:FindFirstChild("level")
-                if lvlVal and lvlVal:IsA("ValueBase") then
-                    level = tonumber(lvlVal.Value)
-                end
-            end
-            level = level or 0
-
-            -- Compare Best (Rank prioritized, then Level tie-breaker)
-            if rank > bestRank or (rank == bestRank and level > bestLevel) then
-                bestRank = rank
-                bestLevel = level
-                bestTool = item
-            end
-        end
-    end
-
-    if bestTool then
-        return GetToolUUID(bestTool)
-    end
-    return nil
 end
 
 local function SendDiscordWebhook(charName, mutationName, rarity)
@@ -482,13 +423,13 @@ end
 -- added: end
 
 local Tabs = {
+    Info = Window:AddTab({ Title = "Information", Icon = "info" }),
     Main = Window:AddTab({ Title = "Main", Icon = "play" }),
     LowBuy = Window:AddTab({ Title = "Buy: Low", Icon = "shield" }),
     HighBuy = Window:AddTab({ Title = "Buy: High", Icon = "zap" }),
     Sell = Window:AddTab({ Title = "Sell", Icon = "trash-2" }),
     Extra = Window:AddTab({ Title = "Extra", Icon = "cpu" }),
-    Visuals = Window:AddTab({ Title = "Visuals", Icon = "eye" }),
-    Info = Window:AddTab({ Title = "Information", Icon = "info" })
+    Visuals = Window:AddTab({ Title = "Visuals", Icon = "eye" })
 }
 
 -- TAB 0: INFO
@@ -499,33 +440,6 @@ Tabs.Info:AddInput("DiscordIDInput", { Title = "Discord User ID", Default = "", 
 -- TAB 1: MAIN
 Tabs.Main:AddToggle("AutoSummonToggle", { Title = "Auto Summon", Default = true, Callback = function(v) AutoSummonEnabled = v getgenv().AutoRollSystem.Enabled = v end })
 Tabs.Main:AddToggle("AutoBuyToggle", { Title = "Enable Auto Buy", Default = true, Callback = function(v) AutoBuyEnabled = v if v and latestRollData then isBuying = false checkAndBuyFromData(latestRollData) end end })
-
--- Auto Clone Main Tab Integration
-Tabs.Main:AddInput("CloneTargetInput", {
-    Title = "Clone Target Character",
-    Description = "Character name to target for Auto Cloning",
-    Default = "Junwoo",
-    Finished = true,
-    Callback = function(v) 
-        CloneTarget = v 
-    end
-})
-Tabs.Main:AddToggle("FastAutoCloneToggle", {
-    Title = "Fast Auto Clone",
-    Description = "Rapidly claims and starts cloning",
-    Default = false,
-    Callback = function(v) 
-        FastAutoCloneEnabled = v
-    end
-})
-Tabs.Main:AddToggle("AFKAutoCloneToggle", {
-    Title = "AFK Auto Clone",
-    Description = "Slower claiming/cloning to reduce lag",
-    Default = true,
-    Callback = function(v) 
-        AFKAutoCloneEnabled = v 
-    end
-})
 
 -- Helper UI Generator: Dropdown Edition
 local function CreateDropdownRarityUI(tabTarget, rarityList)
@@ -646,51 +560,6 @@ task.spawn(function()
             end
         end
         task.wait(ROLL_SPEED)
-    end
-end)
-
--- Auto Clone Loop (Fast & AFK modes)
-task.spawn(function()
-    while true do
-        if FastAutoCloneEnabled or AFKAutoCloneEnabled then
-            -- Assign speed based on which is enabled
-            local delayTime = FastAutoCloneEnabled and 0.1 or 20.0
-            
-            pcall(function()
-                local CloneRemote = ReplicatedStorage.Remotes.CloneRemotes.Request
-                
-                -- Always attempt to claim if we cached a UUID previously
-                if CurrentCloningUUID then
-                    CloneRemote:FireServer("Claim", {
-                        UUID = CurrentCloningUUID,
-                        CharacterId = CurrentCloningUUID
-                    })
-                end
-                
-                -- Search Backpack for best specific target 
-                local bestUUID = GetBestCloneUUID(CloneTarget)
-                if bestUUID then
-                    -- Fail-safe claim: Just in case the server logic holds up and needs the new UUID to register a claim
-                    CloneRemote:FireServer("Claim", {
-                        UUID = bestUUID,
-                        CharacterId = bestUUID
-                    })
-                    
-                    -- Start cloning the best unit found
-                    CloneRemote:FireServer("Start", {
-                        UUID = bestUUID,
-                        CharacterId = bestUUID
-                    })
-                    
-                    -- Cache UUID to claim it successfully in the next loops
-                    CurrentCloningUUID = bestUUID
-                end
-            end)
-            
-            task.wait(delayTime)
-        else
-            task.wait(1)
-        end
     end
 end)
 
