@@ -347,9 +347,23 @@ local function isCharacterAndRarityMutationSelected(charName, mutationName)
     for _, isSelected in pairs(preSelectedMutations) do
         if isSelected == true then hasPreSelectedMutations = true; break end
     end
-    if hasPreSelectedMutations and preSelectedMutations[currentMutation] == true then
-        return true
+    
+    -- Verify the character is actually a Pre-Selected character
+    local isPreSelectedCharacter = false
+    for _, name in ipairs(CharacterRarityMap["Pre-Selected"]) do
+        if string.lower(name) == charLower then
+            isPreSelectedCharacter = true
+            break
+        end
     end
+
+    -- Only apply this override if it is genuinely a Pre-Selected character
+    if isPreSelectedCharacter and hasPreSelectedMutations and preSelectedMutations[currentMutation] == true then
+        return true
+    elseif isPreSelectedCharacter and hasPreSelectedMutations then
+        return false -- Skips the unit if it is Pre-Selected but doesn't have the right mutation
+    end
+
 
     -- Standard Rarity Check
     SelectedRarityMutations[rarityLower] = SelectedRarityMutations[rarityLower] or {}
