@@ -516,7 +516,7 @@ Tabs.Main:AddToggle("AutoBuyToggle", { Title = "Enable Auto Buy", Default = true
 Tabs.Main:AddInput("CloneTargetInput", {
     Title = "Clone Target Character",
     Description = "Character name to target for Auto Cloning",
-    Default = "Junwoo",
+    Default = "Madara",
     Finished = true,
     Callback = function(v) 
         CloneTarget = v 
