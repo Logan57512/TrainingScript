@@ -160,7 +160,7 @@ local FPSBoostEnabled = true
 -- Auto Clone State
 local FastAutoCloneEnabled = false
 local AFKAutoCloneEnabled = true
-local CloneTarget = "Junwoo"
+local CloneTarget = "Madara"
 local CurrentCloningUUID = nil
 
 -- Webhook Settings
@@ -363,7 +363,6 @@ local function isCharacterAndRarityMutationSelected(charName, mutationName)
     elseif isPreSelectedCharacter and hasPreSelectedMutations then
         return false -- Skips the unit if it is Pre-Selected but doesn't have the right mutation
     end
-
 
     -- Standard Rarity Check
     SelectedRarityMutations[rarityLower] = SelectedRarityMutations[rarityLower] or {}
