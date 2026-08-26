@@ -1,0 +1,140 @@
+if game.PlaceId ~= 79908803570376 then return end
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+local player = Players.LocalPlayer
+
+-- 1. CLEANUP (Prevents duplicate menus if you execute the script twice)
+if CoreGui:FindFirstChild("SimpleAutoUI") then
+	CoreGui.SimpleAutoUI:Destroy()
+end
+
+-- 2. STATE VARIABLES
+local autoRollEnabled = true
+local autoObbyEnabled = true
+
+-- 3. CREATE THE UI ELEMENTS
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SimpleAutoUI"
+ScreenGui.Parent = CoreGui
+
+-- Open/Close Button (Always Visible)
+local ToggleMenuBtn = Instance.new("TextButton")
+ToggleMenuBtn.Size = UDim2.new(0, 100, 0, 40)
+ToggleMenuBtn.Position = UDim2.new(0, 20, 0, 20)
+ToggleMenuBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ToggleMenuBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleMenuBtn.Font = Enum.Font.GothamBold
+ToggleMenuBtn.TextSize = 14
+ToggleMenuBtn.Text = "Toggle Menu"
+ToggleMenuBtn.Parent = ScreenGui
+Instance.new("UICorner", ToggleMenuBtn).CornerRadius = UDim.new(0, 8)
+
+-- Main Menu Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 200, 0, 150)
+MainFrame.Position = UDim2.new(0, 20, 0, 70)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.Active = true
+MainFrame.Draggable = true -- Allows you to drag the menu around the screen
+MainFrame.Parent = ScreenGui
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.Text = "Auto Hub"
+Title.Parent = MainFrame
+
+-- AutoRoll Button
+local AutoRollBtn = Instance.new("TextButton")
+AutoRollBtn.Size = UDim2.new(0, 160, 0, 35)
+AutoRollBtn.Position = UDim2.new(0.5, -80, 0, 45)
+AutoRollBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0) -- Starts Green (ON)
+AutoRollBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoRollBtn.Font = Enum.Font.GothamBold
+AutoRollBtn.TextSize = 14
+AutoRollBtn.Text = "AutoRoll: ON"
+AutoRollBtn.Parent = MainFrame
+Instance.new("UICorner", AutoRollBtn).CornerRadius = UDim.new(0, 6)
+
+-- AutoObby Button
+local AutoObbyBtn = Instance.new("TextButton")
+AutoObbyBtn.Size = UDim2.new(0, 160, 0, 35)
+AutoObbyBtn.Position = UDim2.new(0.5, -80, 0, 95)
+AutoObbyBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0) -- Starts Green (ON)
+AutoObbyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoObbyBtn.Font = Enum.Font.GothamBold
+AutoObbyBtn.TextSize = 14
+AutoObbyBtn.Text = "AutoObby: ON"
+AutoObbyBtn.Parent = MainFrame
+Instance.new("UICorner", AutoObbyBtn).CornerRadius = UDim.new(0, 6)
+
+-- 4. BUTTON CLICK EVENTS
+ToggleMenuBtn.MouseButton1Click:Connect(function()
+	MainFrame.Visible = not MainFrame.Visible
+end)
+
+AutoRollBtn.MouseButton1Click:Connect(function()
+	autoRollEnabled = not autoRollEnabled
+	if autoRollEnabled then
+		AutoRollBtn.Text = "AutoRoll: ON"
+		AutoRollBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+	else
+		AutoRollBtn.Text = "AutoRoll: OFF"
+		AutoRollBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+	end
+end)
+
+AutoObbyBtn.MouseButton1Click:Connect(function()
+	autoObbyEnabled = not autoObbyEnabled
+	if autoObbyEnabled then
+		AutoObbyBtn.Text = "AutoObby: ON"
+		AutoObbyBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+	else
+		AutoObbyBtn.Text = "AutoObby: OFF"
+		AutoObbyBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+	end
+end)
+
+-- 5. BACKGROUND AUTOMATION LOOPS
+
+-- AutoRoll Loop (Fires every 1 second)
+task.spawn(function()
+	while task.wait(1) do
+		if autoRollEnabled then
+			pcall(function() -- pcall prevents the script from breaking if the remote is missing temporarily
+				ReplicatedStorage.Remotes.RequestSetting:FireServer({Key = "AutoRoll", Value = true})
+			end)
+		end
+	end
+end)
+
+-- AutoObby Loop (Fires every 305 seconds)
+task.spawn(function()
+	local obbyTimer = 305 -- Starts at 305 so it immediately runs on execution
+	
+	while task.wait(1) do
+		if autoObbyEnabled then
+			obbyTimer = obbyTimer + 1
+			
+			if obbyTimer >= 305 then
+				obbyTimer = 0 -- Reset the clock
+				
+				-- Run the teleport sequence independently so it doesn't pause the timer
+				task.spawn(function()
+					local character = player.Character
+					if character and character:FindFirstChild("HumanoidRootPart") then
+						character:PivotTo(CFrame.new(6993, -299.5, -40.5))
+						task.wait(3)
+						character:PivotTo(CFrame.new(6993.9, -307.378, -293.688))
+					end
+				end)
+			end
+		end
+	end
+end)
