@@ -135,7 +135,7 @@ task.spawn(function()
 				task.spawn(function()
 					local character = player.Character
 					if character and character:FindFirstChild("HumanoidRootPart") then
-						character:PivotTo(CFrame.new(6993, -299.5, -40.5))
+						character:PivotTo(CFrame.new(6993.814, -299.576, -49.596))
 						task.wait(3)
 						character:PivotTo(CFrame.new(6993.9, -307.378, -293.688))
 					end
