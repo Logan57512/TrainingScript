@@ -1,3 +1,5 @@
+-- loadstring(game:HttpGet("https://raw.githubusercontent.com/Logan57512/TrainingScript/refs/heads/main/WarRNG"))()
+
 if game.PlaceId ~= 79908803570376 then return end
 
 local Players = game:GetService("Players")
@@ -105,10 +107,14 @@ end)
 
 -- AutoRoll Loop (Fires every 1 second)
 task.spawn(function()
-	while task.wait(1) do
+	while task.wait(3) do
 		if autoRollEnabled then
 			pcall(function() -- pcall prevents the script from breaking if the remote is missing temporarily
 				ReplicatedStorage.Remotes.RequestSetting:FireServer({Key = "AutoRoll", Value = true})
+			end)
+            task.wait(1)
+            pcall(function() -- pcall prevents the script from breaking if the remote is missing temporarily
+				ReplicatedStorage.Remotes.RequestSetting:FireServer({Key = "QuickRoll", Value = true})
 			end)
 		end
 	end
@@ -130,7 +136,7 @@ task.spawn(function()
 					local character = player.Character
 					if character and character:FindFirstChild("HumanoidRootPart") then
 						character:PivotTo(CFrame.new(6993, -299.5, -40.5))
-						task.wait(3)
+						task.wait(1)
 						character:PivotTo(CFrame.new(6993.9, -307.378, -293.688))
 					end
 				end)
