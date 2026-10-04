@@ -1,16 +1,24 @@
 if game.PlaceId ~= 76814530253298 then return end
 
 --[[
-    Fantasy Dice - Auto Tower + Auto Roll (single script)
+    Fantasy Dice - Auto Tower + Auto Roll + Auto Raid + Auto Quests (single script)
 
     Tower mode (switch in the UI):  All Towers (every tower in TowerConfig, by `order`)  |  Infinity (Infinity Tower only)
+    Towers ALWAYS start on the strongest difficulty (TOWER_DIFFICULTY = "Nightmare") at the highest speed you own
+    (x3 with the Tower Speed gamepass, otherwise x2).
 
-    Protocol (from FantasyDiceClient / TowerClient):
+    Protocol (from FantasyDiceClient / TowerClient / RaidClient / RaidBattle / RaidEntry):
       Roll  : FireServer("Roll") -> ("Rolled", {Token}) -> FireServer("RollLanded", Token)
               ("RollRejected") when refused
-      Tower : FireServer("Tower", {Op="Start", Name=<TowerConfig key>, Auto=true})
+      Tower : FireServer("Tower", {Op="Start", Name=<TowerConfig key>, Auto=true, Difficulty="Nightmare", Speed=2|3})
               ("TowerEvent", {Action = started|floorStarted|...|ended|startRejected})
               ("TradeEvent", {Kind="Ended"}) clears a TradeBusy rejection
+      Quest : FireServer("Feature", {Op="QuestClaim", Period, Id, ExpiresAt, RequestId}) -> ("QuestResult", {...})
+      Raid  : FireServer("Raid", {Op="Watch"})                          -> ("RaidState", state)
+              FireServer("Raid", {Op="Join", Uid=<unit uid>})           (must be inside ServerRaid.RaidJoinCircle)
+              FireServer("Raid", {Op="Strike", Serial=state.Serial})    (attack, ~0.5s cooldown, not while shielding)
+              FireServer("Raid", {Op="Shield", Serial=..., Held=bool})  (hold during a boss slam: state.WindowStart ~= nil)
+              ("RaidNotice", msg) / ("RaidLeft") / ("RaidUnitReward", {Id, Quantity})
 
     Auto Reconnect persistence: to keep the script running after the rejoin, either put it in your executor's
     autoexec folder, or save it as  FantasyDice_Auto.lua  in the executor workspace (it is queued on teleport),
@@ -20,6 +28,12 @@ if game.PlaceId ~= 76814530253298 then return end
 local SCRIPT_URL = ""                       -- optional: raw URL of this script for queue_on_teleport
 local SCRIPT_FILE = "FantasyDice_Auto.lua"  -- optional: workspace filename of this script
 local CFG_FILE = "FantasyDice_AutoConfig.json"
+
+local TOWER_DIFFICULTY = "Nightmare"        -- strongest mode in TowerModes (Normal < Hard < Nightmare)
+local RAID_MAX_ATTEMPTS = 5                 -- join attempts per raid lobby before giving up
+local RAID_RETURN_AFTER_JOIN = true         -- teleport back to where you were once queued
+local RAID_SKIP_TOWER_TEAM = false          -- true = never pick a unit that is in your tower team
+local DEBUG = false                         -- print raid traffic / notices
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -32,7 +46,8 @@ local GuiService = game:GetService("GuiService")
 local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
-local Event = ReplicatedStorage:WaitForChild("FantasyDice"):WaitForChild("Event")
+local FD = ReplicatedStorage:WaitForChild("FantasyDice")
+local Event = FD:WaitForChild("Event")
 
 if getgenv then
     local env = getgenv()
@@ -40,13 +55,36 @@ if getgenv then
 end
 
 ----------------------------------------------------------------------
+-- Safe module access
+----------------------------------------------------------------------
+local function try(f)
+    local ok, r = pcall(f)
+    if ok then return r end
+end
+
+local RaidCfg = try(function() return require(FD.RaidConfig) end) or {}
+local GameConfig = try(function() return require(FD.Config) end)
+local MutationSystem = try(function() return require(FD.MutationSystem) end)
+local UnitInventory = try(function() return require(FD.UnitInventory) end)
+local QuestConfig = try(function()
+    local m = require(FD.StallSystems.QuestConfig)
+    if type(m) == "table" and m.Periods then return m end
+end)
+
+local ATTACK_CD = (RaidCfg.AttackCooldown or 0.5) + 0.06
+local ATTACK_RECOVERY = (RaidCfg.AttackRecovery or 0.25) + 0.05
+
+----------------------------------------------------------------------
 -- Config (auto saved)
 ----------------------------------------------------------------------
-local FULL_H, MIN_H = 250, 30
+local W = 260
+local FULL_H, HEAD_H = 332, 30
 
 local cfg = {
     tower = true,        -- Auto Tower
     roll = true,         -- Auto Roll
+    raid = true,         -- Auto Raid (join lobby + attack + shield slams)
+    quests = true,       -- Auto claim quests
     afk = true,          -- Anti-AFK
     reconnect = true,    -- Auto Reconnect
     mode = "ALL",        -- "ALL" | "INFINITY"
@@ -94,9 +132,21 @@ local alive = true
 local conns = {}
 local function track(c) conns[#conns + 1] = c return c end
 
+local playerState = {}   -- latest ("State", {...}) from the server
+
 -- roll
 local ROLL_DELAY = 0.1
 local rolls, rejects = 0, 0
+
+-- raid (declared early: the tower code has to pause during raids)
+local raidState, raidStateAt = nil, 0
+local raidBusy = false           -- I'm a member of a raid in Battle/Results
+local raidJoining = false        -- a join attempt is in progress
+local raidJoined = false
+local raidAttempts, raidNext, lobbySeen, lastWatch = 0, 0, 0, 0
+local raidJoins, raidWins, raidLosses, raidStrikes = 0, 0, 0, 0
+local raidNote = ""
+local shieldHeld, lastShield, nextStrike = false, 0, 0
 
 -- tower
 local allTowers = {}
@@ -107,6 +157,7 @@ local lastStartSent, lastTowerEvt, lastTowerName = 0, 0, ""
 local retryDelay = 0.5
 local blocked = {}
 local runs, floorNo, curName, towerNote = 0, 0, "-", ""
+local curDiff, curSpeed = "-", 0
 
 -- misc
 local reconnectNote = ""
@@ -114,7 +165,7 @@ local afkKicks = 0
 
 do
     local ok, all = pcall(function()
-        return require(ReplicatedStorage.FantasyDice.TowerConfig).GetAll()
+        return require(FD.TowerConfig).GetAll()
     end)
     if ok and type(all) == "table" then
         local tmp = {}
@@ -139,7 +190,7 @@ end
 buildTowers()
 
 ----------------------------------------------------------------------
--- Roll (fixed interval, animation skipped)
+-- Roll (fixed interval, animation skipped)  -- unchanged
 --   a "Roll" request every ROLL_DELAY seconds; each "Rolled" is acknowledged with "RollLanded(token)" at once
 ----------------------------------------------------------------------
 local function onRolled(d)
@@ -154,8 +205,14 @@ local function onRollRejected()
 end
 
 ----------------------------------------------------------------------
--- Tower (restart immediately after "ended")
+-- Tower (restart immediately after "ended", always Nightmare, fastest speed)
 ----------------------------------------------------------------------
+local function towerSpeed()
+    local perks = playerState.OwnedPerks
+    if type(perks) == "table" and perks["Tower Speed"] == true then return 3 end
+    return 2 -- speed 3 needs the Tower Speed gamepass; 2 is free
+end
+
 local function pickTower()
     local n = #towers
     for i = 0, n - 1 do
@@ -172,7 +229,7 @@ local function advance()
 end
 
 local function startTower()
-    if not (alive and cfg.tower) or inRun or tradeBusy then return end
+    if not (alive and cfg.tower) or inRun or tradeBusy or raidBusy or raidJoining then return end
     local name = pickTower()
     if not name then
         towerNote = "all towers locked, retrying"
@@ -182,7 +239,13 @@ local function startTower()
     towerNote = ""
     lastTowerName = name
     lastStartSent = os.clock()
-    Event:FireServer("Tower", { Op = "Start", Name = name, Auto = true })
+    Event:FireServer("Tower", {
+        Op = "Start",
+        Name = name,
+        Auto = true,
+        Difficulty = TOWER_DIFFICULTY,
+        Speed = towerSpeed(),
+    })
 end
 
 local function onTowerEvent(d)
@@ -193,15 +256,22 @@ local function onTowerEvent(d)
         inRun = true
         retryDelay = 0.5
         curName = d.Name or lastTowerName
+        curDiff = d.Difficulty or "?"
+        curSpeed = d.Speed or 1
         floorNo = 1
+        if curDiff ~= TOWER_DIFFICULTY then
+            towerNote = "server ran " .. tostring(curDiff) .. " (wanted " .. TOWER_DIFFICULTY .. ")"
+        end
     elseif a == "floorStarted" then
         floorNo = d.Floor or floorNo
     elseif a == "ended" then
         inRun = false
         runs += 1
-        advance()
-        startTower()
-    elseif a == "startRejected" then
+        if cfg.tower then
+            advance()
+            startTower()
+        end
+    elseif a == "startRejected" and cfg.tower then
         if d.Code == "TradeBusy" then
             tradeBusy = true
             towerNote = "trade busy, waiting"
@@ -221,27 +291,23 @@ end
 -- Auto claim quests (native, no UI)
 --   FireServer("Feature", {Op="QuestClaim", Period, Id, ExpiresAt, RequestId})  ->  ("QuestResult", {RequestId, Quests, ...})
 --   Quest state arrives in ("State", {Quests = {Daily|Weekly = {progress, claimed, expiresAt}}})
+--   QuestConfig already contains the raid quests (RaidBlocks / RaidWins / RaidParticipation / RaidStrikes).
 ----------------------------------------------------------------------
-local QuestConfig
-do
-    local ok, mod = pcall(function()
-        return require(ReplicatedStorage.FantasyDice.StallSystems.QuestConfig)
-    end)
-    if ok and type(mod) == "table" and mod.Periods then QuestConfig = mod end
-end
-
-local questState = nil          -- latest Quests table from the server
 local questReq = 1000000        -- high range so ids never collide with the game's own UI counter
 local questPending, questPendingAt = nil, 0
+local lastQuestCheck = 0
 
 local function checkQuests()
-    if not (alive and QuestConfig and questState) then return end
+    local questState = playerState.Quests
+    if not (alive and cfg.quests and QuestConfig and type(questState) == "table") then return end
     if questPending and os.clock() - questPendingAt < 3 then return end
     questPending = nil
+    lastQuestCheck = os.clock()
 
     for _, period in ipairs({ "Daily", "Weekly" }) do
         local q, pcfg = questState[period], QuestConfig.Periods[period]
         if type(q) == "table" and pcfg then
+            if type(q.expiresAt) == "number" and q.expiresAt <= os.time() then continue end -- stale, wait for reset
             local claimed, progress = q.claimed or {}, q.progress or {}
             for _, quest in ipairs(pcfg.quests) do
                 if not claimed[quest.id] and (progress[quest.id] or 0) >= quest.target then
@@ -262,20 +328,249 @@ local function checkQuests()
 end
 
 ----------------------------------------------------------------------
+-- Auto Raid
+--   1) lobby open (mirrors RaidEntry.available) -> go into RaidJoinCircle, pick the strongest unit, Join
+--   2) battle -> Strike every attack cooldown; hold Shield while a slam window is active (full block)
+--   3) tower is paused while fighting, resumes afterwards
+----------------------------------------------------------------------
+local function myMember(s)
+    if type(s) ~= "table" or type(s.Members) ~= "table" then return nil end
+    for _, m in ipairs(s.Members) do
+        if m.UserId == LocalPlayer.UserId then return m end
+    end
+end
+
+local function onRaidState(s)
+    if type(s) ~= "table" then return end
+    local prev = raidState
+    raidState, raidStateAt = s, os.clock()
+    local me = myMember(s)
+    local was = raidBusy
+    raidBusy = me ~= nil and (s.Phase == "Battle" or s.Phase == "Results")
+
+    if s.Phase == "Results" and me and not (prev and prev.Phase == "Results") then
+        if (s.Health or 1) <= 0 then raidWins += 1 else raidLosses += 1 end
+    end
+    if was and not raidBusy then
+        shieldHeld = false
+        if cfg.tower then task.defer(startTower) end
+    end
+end
+
+local function sendShield(held)
+    local s = raidState
+    if s then
+        Event:FireServer("Raid", { Op = "Shield", Serial = s.Serial, Held = held })
+    end
+    shieldHeld = held
+    lastShield = os.clock()
+end
+
+local function sendStrike()
+    local s = raidState
+    if not s then return end
+    Event:FireServer("Raid", { Op = "Strike", Serial = s.Serial })
+    raidStrikes += 1
+    nextStrike = os.clock() + ATTACK_CD
+end
+
+local function raidTick()
+    local now = os.clock()
+    if raidBusy and now - raidStateAt > 8 then -- lost the raid feed, release the tower
+        raidBusy = false
+        shieldHeld = false
+        if cfg.tower then task.defer(startTower) end
+    end
+
+    local s = raidState
+    local me = cfg.raid and raidBusy and s and s.Phase == "Battle" and myMember(s)
+    if not (me and (me.Health or 0) > 0) then
+        if shieldHeld then sendShield(false) end
+        if raidBusy and now - lastWatch > 2 and now - raidStateAt > 2 then
+            lastWatch = now
+            Event:FireServer("Raid", { Op = "Watch" })
+        end
+        return
+    end
+
+    local serverNow = workspace:GetServerTimeNow()
+    local slam = s.WindowStart ~= nil and (s.WindowEnd == nil or serverNow < s.WindowEnd + 0.5)
+    if slam then
+        if not shieldHeld or now - lastShield > 0.35 then sendShield(true) end -- lease is ~1.2s, renew like the real client
+    elseif shieldHeld then
+        sendShield(false)
+        nextStrike = now + ATTACK_RECOVERY
+    elseif now >= nextStrike then
+        sendStrike()
+    end
+end
+
+local function raidAvailable()
+    local sr = workspace:FindFirstChild("ServerRaid")
+    if not sr then return false end
+    local boss = sr:FindFirstChild("Boss")
+    local startsAt = sr:GetAttribute("RaidStartsAt")
+    if sr:GetAttribute("RaidPhase") ~= "Lobby" or not boss then return false end
+    if boss:GetAttribute("Defeated") then return false end
+    return type(startsAt) == "number" and workspace:GetServerTimeNow() < startsAt
+end
+
+local function isQueued()
+    local s = raidState
+    if s and os.clock() - raidStateAt < 15 and s.Phase == "Lobby" then
+        return myMember(s) ~= nil
+    end
+    return LocalPlayer:GetAttribute("RaidQueuedUnit") ~= nil
+end
+
+-- strongest unit by the same damage formula TowerClient shows (Odds^0.58 * damageMultiplier)
+local function bestUnits(limit)
+    local st = playerState
+    local out, team = {}, {}
+    if RAID_SKIP_TOWER_TEAM and type(st.TowerTeam) == "table" then
+        for _, uid in pairs(st.TowerTeam) do team[uid] = true end
+    end
+    local function consider(id, rec)
+        if type(rec) ~= "table" or not rec.Uid or team[rec.Uid] then return end
+        local base = GameConfig and GameConfig.ById and GameConfig.ById[id]
+        if not base then return end
+        local ok, score = pcall(function()
+            local u = MutationSystem.Resolve(base, rec)
+            return (u.Odds or base.Odds or 0) ^ 0.58 * UnitInventory.Multiplier(rec, "damageMultiplier")
+        end)
+        if not ok or type(score) ~= "number" then score = base.Odds or 0 end
+        table.insert(out, { Uid = rec.Uid, Id = id, Score = score })
+    end
+    for id, list in pairs(st.InventoryRecords or {}) do
+        if type(list) == "table" then
+            for _, rec in ipairs(list) do consider(id, rec) end
+        end
+    end
+    for k, rec in pairs(st.SlotRecords or {}) do
+        local id = (st.Slots or {})[k]
+        if id then consider(id, rec) end
+    end
+    table.sort(out, function(a, b) return a.Score > b.Score end)
+    while #out > limit do table.remove(out) end
+    return out
+end
+
+local function gotoCircle()
+    local sr = workspace:FindFirstChild("ServerRaid")
+    local circle = sr and sr:FindFirstChild("RaidJoinCircle")
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not (circle and hrp) then return false end
+    local radius = circle:GetAttribute("JoinRadius") or RaidCfg.JoinRadius or 23
+    local d = hrp.Position - circle.Position
+    if Vector2.new(d.X, d.Z).Magnitude < radius - 4 and math.abs(d.Y) < 10 then return false end
+    char:PivotTo(CFrame.new(circle.Position + Vector3.new(0, 3, 0)))
+    task.wait(0.6)
+    return true
+end
+
+-- attempt plan: best unit, best unit after cancelling the tower run, 2nd best, 3rd best, best again after cancel
+local PLAN = { { 1, false }, { 1, true }, { 2, false }, { 3, false }, { 1, true } }
+
+local function attemptJoin()
+    if raidJoining then return end
+    raidJoining = true
+    task.spawn(function()
+        raidAttempts += 1
+        raidNext = os.clock() + 4
+        local step = PLAN[math.min(raidAttempts, #PLAN)]
+        local cands = bestUnits(3)
+        local cand = cands[step[1]] or cands[1]
+        if not cand then
+            raidNote = "raid: no unit found in state"
+            raidJoining = false
+            return
+        end
+
+        local char = LocalPlayer.Character
+        local home = char and char:GetPivot()
+        local moved = gotoCircle()
+        Event:FireServer("Raid", { Op = "Watch" })
+        task.wait(0.4)
+        if step[2] and inRun then
+            Event:FireServer("Tower", { Op = "Cancel" })
+            task.wait(0.7)
+        end
+        Event:FireServer("Raid", { Op = "Join", Uid = cand.Uid })
+
+        local t0 = os.clock()
+        while alive and os.clock() - t0 < 3 and not isQueued() do task.wait(0.2) end
+
+        if isQueued() then
+            raidJoined = true
+            raidJoins += 1
+            raidNote = ""
+        else
+            raidNote = string.format("raid join failed (%d/%d)", raidAttempts, RAID_MAX_ATTEMPTS)
+        end
+
+        if moved and RAID_RETURN_AFTER_JOIN and raidJoined and home then
+            local c = LocalPlayer.Character
+            if c then pcall(function() c:PivotTo(home) end) end
+        end
+
+        raidJoining = false
+        if cfg.tower then startTower() end
+    end)
+end
+
+local function raidManage()
+    if not cfg.raid or raidJoining or raidBusy then return end
+    local now = os.clock()
+    if not raidAvailable() then
+        raidAttempts, raidJoined, lobbySeen = 0, false, 0
+        return
+    end
+    if lobbySeen == 0 then lobbySeen = now end
+
+    -- make sure we have a fresh state first (Watch); fall back to the player attribute after 4s
+    local fresh = raidState and now - raidStateAt < 15 and raidState.Phase == "Lobby"
+    if not fresh then
+        if now - lastWatch > 2 then
+            lastWatch = now
+            Event:FireServer("Raid", { Op = "Watch" })
+        end
+        if now - lobbySeen < 4 then return end
+    end
+
+    if isQueued() then
+        raidJoined = true
+        return
+    end
+    raidJoined = false
+    if raidAttempts >= RAID_MAX_ATTEMPTS or now < raidNext then return end
+    attemptJoin()
+end
+
+----------------------------------------------------------------------
 -- Remote dispatcher
 ----------------------------------------------------------------------
 local function dispatch(kind, data)
+    if DEBUG and type(kind) == "string" and kind:sub(1, 4) == "Raid" then
+        print("[FD raid]", kind, typeof(data) == "table" and (data.Phase or "") or data)
+    end
+
     if kind == "Rolled" then
         if cfg.roll then onRolled(data) end
     elseif kind == "RollRejected" then
         if cfg.roll then onRollRejected() end
     elseif kind == "TowerEvent" then
-        if cfg.tower then onTowerEvent(data) end
+        onTowerEvent(data)
     elseif kind == "State" then
-        if type(data) == "table" and type(data.Quests) == "table" then questState = data.Quests end
+        if type(data) == "table" then
+            playerState = data
+            if os.clock() - lastQuestCheck > 2 then task.defer(checkQuests) end
+        end
     elseif kind == "QuestResult" then
         if type(data) == "table" then
-            if type(data.Quests) == "table" then questState = data.Quests end
+            if type(data.Quests) == "table" then playerState.Quests = data.Quests end
+            if type(data.Items) == "table" then playerState.Items = data.Items end
+            if type(data.OwnedPerks) == "table" then playerState.OwnedPerks = data.OwnedPerks end
             if data.RequestId == questPending then questPending = nil end
             task.defer(checkQuests)
         end
@@ -283,6 +578,13 @@ local function dispatch(kind, data)
         tradeBusy = false
         towerNote = ""
         startTower()
+    elseif kind == "RaidState" then
+        onRaidState(data)
+    elseif kind == "RaidNotice" then
+        raidNote = type(data) == "table" and tostring(data.message or data.Message or "") or tostring(data)
+        if DEBUG then print("[FD raid] notice:", raidNote) end
+    elseif kind == "RaidLeft" then
+        raidJoined = false
     end
 end
 
@@ -301,6 +603,18 @@ local function setTower(v)
         tradeBusy = false
         startTower()
     end
+end
+
+local function setRaid(v)
+    cfg.raid = v
+    saveCfg()
+    if not v and shieldHeld then sendShield(false) end
+end
+
+local function setQuests(v)
+    cfg.quests = v
+    saveCfg()
+    if v then checkQuests() end
 end
 
 ----------------------------------------------------------------------
@@ -387,7 +701,8 @@ local BG, PANEL, TXT, DIM = Color3.fromRGB(17, 20, 30), Color3.fromRGB(26, 30, 4
 local ON_C, OFF_C = Color3.fromRGB(64, 196, 120), Color3.fromRGB(70, 76, 98)
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.fromOffset(230, cfg.minimized and MIN_H or FULL_H)
+frame.Size = UDim2.fromOffset(W, FULL_H)
+frame.Visible = not cfg.minimized -- cfg.minimized == window hidden
 frame.Position = UDim2.new(cfg.pos[1], cfg.pos[2], cfg.pos[3], cfg.pos[4])
 frame.BackgroundColor3 = BG
 frame.BorderSizePixel = 0
@@ -400,14 +715,14 @@ stroke.Color = Color3.fromRGB(58, 66, 96)
 stroke.Thickness = 1.2
 
 local head = Instance.new("Frame")
-head.Size = UDim2.new(1, 0, 0, MIN_H)
+head.Size = UDim2.new(1, 0, 0, HEAD_H)
 head.BackgroundColor3 = PANEL
 head.BorderSizePixel = 0
 head.Parent = frame
 
 local title = Instance.new("TextLabel")
 title.BackgroundTransparency = 1
-title.Size = UDim2.new(1, -40, 1, 0)
+title.Size = UDim2.new(1, -24, 1, 0)
 title.Position = UDim2.fromOffset(12, 0)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 12
@@ -415,16 +730,6 @@ title.TextXAlignment = Enum.TextXAlignment.Left
 title.TextColor3 = TXT
 title.Text = "FANTASY DICE  ·  AUTO"
 title.Parent = head
-
-local minBtn = Instance.new("TextButton")
-minBtn.Size = UDim2.fromOffset(26, 22)
-minBtn.Position = UDim2.new(1, -30, 0, 4)
-minBtn.BackgroundTransparency = 1
-minBtn.Font = Enum.Font.GothamBold
-minBtn.TextSize = 16
-minBtn.TextColor3 = DIM
-minBtn.Text = cfg.minimized and "+" or "–"
-minBtn.Parent = head
 
 local function tween(o, t, props)
     TweenService:Create(o, TweenInfo.new(t, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
@@ -530,14 +835,16 @@ local function makeToggle(y, label, initial, onChange)
     end)
 end
 
-makeToggle(70, "Auto Tower", cfg.tower, setTower)
+makeToggle(70, "Auto Tower (Nightmare)", cfg.tower, setTower)
 makeToggle(100, "Auto Roll", cfg.roll, setRoll)
-makeToggle(130, "Anti-AFK", cfg.afk, function(v) cfg.afk = v saveCfg() end)
-makeToggle(160, "Auto Reconnect", cfg.reconnect, function(v) cfg.reconnect = v saveCfg() end)
+makeToggle(130, "Auto Raid", cfg.raid, setRaid)
+makeToggle(160, "Auto Quests", cfg.quests, setQuests)
+makeToggle(190, "Anti-AFK", cfg.afk, function(v) cfg.afk = v saveCfg() end)
+makeToggle(220, "Auto Reconnect", cfg.reconnect, function(v) cfg.reconnect = v saveCfg() end)
 
 local divider = Instance.new("Frame")
 divider.Size = UDim2.new(1, -24, 0, 1)
-divider.Position = UDim2.fromOffset(12, 196)
+divider.Position = UDim2.fromOffset(12, 256)
 divider.BackgroundColor3 = Color3.fromRGB(46, 52, 76)
 divider.BorderSizePixel = 0
 divider.Parent = frame
@@ -555,27 +862,68 @@ local function statLabel(y)
     l.Parent = frame
     return l
 end
-local statTower, statRoll, statNote = statLabel(202), statLabel(218), statLabel(232)
+local statTower, statRoll, statRaid, statNote = statLabel(262), statLabel(278), statLabel(294), statLabel(310)
 
 local minimized = cfg.minimized
 
 local function refresh()
-    statTower.Text = string.format("Tower: %s · F%d · runs %d", curName, floorNo, runs)
+    statTower.Text = string.format("%s · %s x%d · F%d · %d runs", curName, curDiff:sub(1, 4), curSpeed, floorNo, runs)
     statRoll.Text = string.format("Roll: %d · rej %d", rolls, rejects)
-    local note = reconnectNote ~= "" and reconnectNote or towerNote
+
+    local status
+    if raidBusy then status = "fighting"
+    elseif raidJoining then status = "joining"
+    elseif raidJoined or LocalPlayer:GetAttribute("RaidQueuedUnit") ~= nil then status = "queued"
+    else status = "waiting" end
+    statRaid.Text = string.format("Raid: %s · %d joins · W/L %d/%d · %d hits", status, raidJoins, raidWins, raidLosses, raidStrikes)
+
+    local note = reconnectNote ~= "" and reconnectNote or raidNote ~= "" and raidNote or towerNote
     if note == "" then
         note = cfg.afk and string.format("Anti-AFK on · %d resets", afkKicks) or ""
     end
     statNote.Text = note
 end
 
-minBtn.Activated:Connect(function()
+-- fixed (non-draggable) open/close button, top-left, just under the Roblox top bar
+local toggle = Instance.new("TextButton")
+toggle.Name = "FD_Toggle"
+toggle.AnchorPoint = Vector2.new(0, 0)
+toggle.Position = UDim2.fromOffset(12, 64)
+toggle.Size = UDim2.fromOffset(44, 44)
+toggle.AutoButtonColor = false
+toggle.BorderSizePixel = 0
+toggle.Font = Enum.Font.GothamBold
+toggle.TextSize = 14
+toggle.Text = "FD"
+toggle.ZIndex = 10
+toggle.Parent = gui
+Instance.new("UICorner", toggle).CornerRadius = UDim.new(0, 10)
+local toggleStroke = Instance.new("UIStroke", toggle)
+toggleStroke.Color = Color3.fromRGB(58, 66, 96)
+toggleStroke.Thickness = 1.2
+
+local pop = Instance.new("UIScale", frame)
+
+local function applyWindow(animate)
+    toggle.BackgroundColor3 = minimized and PANEL or ON_C
+    toggle.TextColor3 = minimized and DIM or Color3.new(1, 1, 1)
+    frame.Visible = not minimized
+    if not minimized then
+        refresh()
+        if animate then
+            pop.Scale = 0.92
+            tween(pop, 0.15, { Scale = 1 })
+        end
+    end
+end
+
+toggle.Activated:Connect(function()
     minimized = not minimized
     cfg.minimized = minimized
     saveCfg()
-    minBtn.Text = minimized and "+" or "–"
-    tween(frame, 0.2, { Size = UDim2.fromOffset(230, minimized and MIN_H or FULL_H) })
+    applyWindow(true)
 end)
+applyWindow(false)
 
 -- drag (mouse + touch), position saved
 do
@@ -615,10 +963,11 @@ task.spawn(function()
     task.wait(0.5)
 
     track(Event.OnClientEvent:Connect(dispatch))
+    Event:FireServer("Raid", { Op = "Watch" })
 
     if cfg.tower then startTower() end
 
-    -- roll loop
+    -- roll loop (unchanged)
     task.spawn(function()
         while alive do
             if cfg.roll then
@@ -630,15 +979,25 @@ task.spawn(function()
         end
     end)
 
-    -- one low-frequency loop: watchdogs + stat refresh (no per-frame work)
+    -- raid combat loop (attack / shield timing)
+    task.spawn(function()
+        while alive do
+            local ok, err = pcall(raidTick)
+            if not ok and DEBUG then warn("[FD raid tick]", err) end
+            task.wait(0.05)
+        end
+    end)
+
+    -- one low-frequency loop: watchdogs + raid lobby + quests + stat refresh (no per-frame work)
     local tick = 0
     while alive do
         task.wait(0.5)
         local now = os.clock()
         tick += 1
         if tick % 10 == 0 then checkQuests() end
+        pcall(raidManage)
 
-        if cfg.tower then
+        if cfg.tower and not (raidBusy or raidJoining) then
             if inRun and now - lastTowerEvt > 90 then
                 inRun = false            -- lost sync: resume
                 startTower()
