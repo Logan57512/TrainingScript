@@ -1,0 +1,662 @@
+if game.PlaceId ~= 76814530253298 then return end
+
+--[[
+    Fantasy Dice - Auto Tower + Auto Roll (single script)
+
+    Tower mode (switch in the UI):  All Towers (every tower in TowerConfig, by `order`)  |  Infinity (Infinity Tower only)
+
+    Protocol (from FantasyDiceClient / TowerClient):
+      Roll  : FireServer("Roll") -> ("Rolled", {Token}) -> FireServer("RollLanded", Token)
+              ("RollRejected") when refused
+      Tower : FireServer("Tower", {Op="Start", Name=<TowerConfig key>, Auto=true})
+              ("TowerEvent", {Action = started|floorStarted|...|ended|startRejected})
+              ("TradeEvent", {Kind="Ended"}) clears a TradeBusy rejection
+
+    Auto Reconnect persistence: to keep the script running after the rejoin, either put it in your executor's
+    autoexec folder, or save it as  FantasyDice_Auto.lua  in the executor workspace (it is queued on teleport),
+    or set SCRIPT_URL below.
+]]
+
+local SCRIPT_URL = ""                       -- optional: raw URL of this script for queue_on_teleport
+local SCRIPT_FILE = "FantasyDice_Auto.lua"  -- optional: workspace filename of this script
+local CFG_FILE = "FantasyDice_AutoConfig.json"
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local GuiService = game:GetService("GuiService")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Event = ReplicatedStorage:WaitForChild("FantasyDice"):WaitForChild("Event")
+
+if getgenv then
+    local env = getgenv()
+    if env.__FD_AUTO_CLEANUP then pcall(env.__FD_AUTO_CLEANUP) end
+end
+
+----------------------------------------------------------------------
+-- Config (auto saved)
+----------------------------------------------------------------------
+local FULL_H, MIN_H = 250, 30
+
+local cfg = {
+    tower = true,        -- Auto Tower
+    roll = true,         -- Auto Roll
+    afk = true,          -- Anti-AFK
+    reconnect = true,    -- Auto Reconnect
+    mode = "ALL",        -- "ALL" | "INFINITY"
+    minimized = false,
+    pos = { 0, 18, 0.5, -FULL_H / 2 }, -- xScale, xOffset, yScale, yOffset
+}
+
+local canFile = type(readfile) == "function" and type(writefile) == "function" and type(isfile) == "function"
+
+do
+    if canFile then
+        local ok, raw = pcall(function()
+            if isfile(CFG_FILE) then return readfile(CFG_FILE) end
+        end)
+        if ok and raw then
+            local ok2, t = pcall(function() return HttpService:JSONDecode(raw) end)
+            if ok2 and type(t) == "table" then
+                for k, def in pairs(cfg) do
+                    if type(t[k]) == type(def) then cfg[k] = t[k] end
+                end
+                if cfg.mode ~= "ALL" and cfg.mode ~= "INFINITY" then cfg.mode = "ALL" end
+                local p = cfg.pos
+                if #p ~= 4 or type(p[1]) ~= "number" or type(p[2]) ~= "number" or type(p[3]) ~= "number" or type(p[4]) ~= "number" then
+                    cfg.pos = { 0, 18, 0.5, -FULL_H / 2 }
+                end
+            end
+        end
+    end
+end
+
+local saveQueued = false
+local function saveCfg()
+    if not canFile or saveQueued then return end
+    saveQueued = true
+    task.delay(0.5, function()
+        saveQueued = false
+        pcall(function() writefile(CFG_FILE, HttpService:JSONEncode(cfg)) end)
+    end)
+end
+
+----------------------------------------------------------------------
+-- State
+----------------------------------------------------------------------
+local alive = true
+local conns = {}
+local function track(c) conns[#conns + 1] = c return c end
+
+-- roll
+local ROLL_DELAY = 0.1
+local rolls, rejects = 0, 0
+
+-- tower
+local allTowers = {}
+local towers = {}
+local tIdx = 1
+local inRun, tradeBusy = false, false
+local lastStartSent, lastTowerEvt, lastTowerName = 0, 0, ""
+local retryDelay = 0.5
+local blocked = {}
+local runs, floorNo, curName, towerNote = 0, 0, "-", ""
+
+-- misc
+local reconnectNote = ""
+local afkKicks = 0
+
+do
+    local ok, all = pcall(function()
+        return require(ReplicatedStorage.FantasyDice.TowerConfig).GetAll()
+    end)
+    if ok and type(all) == "table" then
+        local tmp = {}
+        for name, t in pairs(all) do tmp[#tmp + 1] = { name = name, order = t.order or 99 } end
+        table.sort(tmp, function(a, b) return a.order < b.order end)
+        for _, t in ipairs(tmp) do allTowers[#allTowers + 1] = t.name end
+    end
+    if #allTowers == 0 then
+        allTowers = { "Dragon Tower", "Cursed Tower", "Pirate Tower", "Hidden Leaf Tower", "Infinity Tower" }
+    end
+end
+
+local function buildTowers()
+    if cfg.mode == "INFINITY" then
+        towers = { "Infinity Tower" }
+    else
+        towers = table.clone(allTowers)
+    end
+    tIdx = 1
+    blocked = {}
+end
+buildTowers()
+
+----------------------------------------------------------------------
+-- Roll (fixed interval, animation skipped)
+--   a "Roll" request every ROLL_DELAY seconds; each "Rolled" is acknowledged with "RollLanded(token)" at once
+----------------------------------------------------------------------
+local function onRolled(d)
+    rolls += 1
+    if type(d) == "table" and d.Token ~= nil then
+        Event:FireServer("RollLanded", d.Token)
+    end
+end
+
+local function onRollRejected()
+    rejects += 1
+end
+
+----------------------------------------------------------------------
+-- Tower (restart immediately after "ended")
+----------------------------------------------------------------------
+local function pickTower()
+    local n = #towers
+    for i = 0, n - 1 do
+        local k = (tIdx - 1 + i) % n + 1
+        if (blocked[towers[k]] or 0) <= os.clock() then
+            tIdx = k
+            return towers[k]
+        end
+    end
+end
+
+local function advance()
+    if #towers > 1 then tIdx = tIdx % #towers + 1 end
+end
+
+local function startTower()
+    if not (alive and cfg.tower) or inRun or tradeBusy then return end
+    local name = pickTower()
+    if not name then
+        towerNote = "all towers locked, retrying"
+        task.delay(5, startTower)
+        return
+    end
+    towerNote = ""
+    lastTowerName = name
+    lastStartSent = os.clock()
+    Event:FireServer("Tower", { Op = "Start", Name = name, Auto = true })
+end
+
+local function onTowerEvent(d)
+    if type(d) ~= "table" then return end
+    lastTowerEvt = os.clock()
+    local a = d.Action
+    if a == "started" then
+        inRun = true
+        retryDelay = 0.5
+        curName = d.Name or lastTowerName
+        floorNo = 1
+    elseif a == "floorStarted" then
+        floorNo = d.Floor or floorNo
+    elseif a == "ended" then
+        inRun = false
+        runs += 1
+        advance()
+        startTower()
+    elseif a == "startRejected" then
+        if d.Code == "TradeBusy" then
+            tradeBusy = true
+            towerNote = "trade busy, waiting"
+        elseif d.Retryable == false then
+            blocked[lastTowerName] = os.clock() + 30
+            towerNote = tostring(d.Reason or "start refused")
+            advance()
+            task.delay(0.3, startTower)
+        else
+            retryDelay = math.min(3, retryDelay * 1.5)
+            task.delay(retryDelay, startTower)
+        end
+    end
+end
+
+----------------------------------------------------------------------
+-- Auto claim quests (native, no UI)
+--   FireServer("Feature", {Op="QuestClaim", Period, Id, ExpiresAt, RequestId})  ->  ("QuestResult", {RequestId, Quests, ...})
+--   Quest state arrives in ("State", {Quests = {Daily|Weekly = {progress, claimed, expiresAt}}})
+----------------------------------------------------------------------
+local QuestConfig
+do
+    local ok, mod = pcall(function()
+        return require(ReplicatedStorage.FantasyDice.StallSystems.QuestConfig)
+    end)
+    if ok and type(mod) == "table" and mod.Periods then QuestConfig = mod end
+end
+
+local questState = nil          -- latest Quests table from the server
+local questReq = 1000000        -- high range so ids never collide with the game's own UI counter
+local questPending, questPendingAt = nil, 0
+
+local function checkQuests()
+    if not (alive and QuestConfig and questState) then return end
+    if questPending and os.clock() - questPendingAt < 3 then return end
+    questPending = nil
+
+    for _, period in ipairs({ "Daily", "Weekly" }) do
+        local q, pcfg = questState[period], QuestConfig.Periods[period]
+        if type(q) == "table" and pcfg then
+            local claimed, progress = q.claimed or {}, q.progress or {}
+            for _, quest in ipairs(pcfg.quests) do
+                if not claimed[quest.id] and (progress[quest.id] or 0) >= quest.target then
+                    questReq += 1
+                    questPending, questPendingAt = questReq, os.clock()
+                    Event:FireServer("Feature", {
+                        Op = "QuestClaim",
+                        Period = period,
+                        Id = quest.id,
+                        ExpiresAt = q.expiresAt,
+                        RequestId = questReq,
+                    })
+                    return -- one at a time; the result triggers the next
+                end
+            end
+        end
+    end
+end
+
+----------------------------------------------------------------------
+-- Remote dispatcher
+----------------------------------------------------------------------
+local function dispatch(kind, data)
+    if kind == "Rolled" then
+        if cfg.roll then onRolled(data) end
+    elseif kind == "RollRejected" then
+        if cfg.roll then onRollRejected() end
+    elseif kind == "TowerEvent" then
+        if cfg.tower then onTowerEvent(data) end
+    elseif kind == "State" then
+        if type(data) == "table" and type(data.Quests) == "table" then questState = data.Quests end
+    elseif kind == "QuestResult" then
+        if type(data) == "table" then
+            if type(data.Quests) == "table" then questState = data.Quests end
+            if data.RequestId == questPending then questPending = nil end
+            task.defer(checkQuests)
+        end
+    elseif kind == "TradeEvent" and type(data) == "table" and data.Kind == "Ended" and tradeBusy then
+        tradeBusy = false
+        towerNote = ""
+        startTower()
+    end
+end
+
+----------------------------------------------------------------------
+-- Feature switches
+----------------------------------------------------------------------
+local function setRoll(v)
+    cfg.roll = v
+    saveCfg()
+end
+
+local function setTower(v)
+    cfg.tower = v
+    saveCfg()
+    if v then
+        tradeBusy = false
+        startTower()
+    end
+end
+
+----------------------------------------------------------------------
+-- Anti-AFK (event-driven)
+----------------------------------------------------------------------
+track(LocalPlayer.Idled:Connect(function()
+    if not (alive and cfg.afk) then return end
+    afkKicks += 1
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+end))
+
+----------------------------------------------------------------------
+-- Auto Reconnect
+----------------------------------------------------------------------
+local reconnecting = false
+
+local function queueSelf()
+    local q = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+    if type(q) ~= "function" then return end
+    local code
+    if SCRIPT_URL ~= "" then
+        code = string.format("loadstring(game:HttpGet(%q))()", SCRIPT_URL)
+    else
+        code = string.format("if isfile and isfile(%q) then loadstring(readfile(%q))() end", SCRIPT_FILE, SCRIPT_FILE)
+    end
+    pcall(q, code)
+end
+
+local function reconnect()
+    if reconnecting or not alive or not cfg.reconnect then return end
+    reconnecting = true
+    task.spawn(function()
+        task.wait(2)
+        local attempt = 0
+        while alive and cfg.reconnect do
+            attempt += 1
+            reconnectNote = "reconnecting (try " .. attempt .. ")"
+            queueSelf()
+            pcall(function()
+                if attempt == 1 then
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+                else
+                    TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                end
+            end)
+            task.wait(math.min(30, 8 + attempt * 2))
+        end
+        reconnecting = false
+        reconnectNote = ""
+    end)
+end
+
+task.spawn(function()
+    local ok, overlay = pcall(function()
+        return CoreGui:WaitForChild("RobloxPromptGui", 15):WaitForChild("promptOverlay", 15)
+    end)
+    if ok and overlay then
+        track(overlay.ChildAdded:Connect(function(c)
+            if c.Name == "ErrorPrompt" then reconnect() end
+        end))
+    end
+end)
+track(GuiService.ErrorMessageChanged:Connect(function(msg)
+    if msg ~= "" then reconnect() end
+end))
+
+----------------------------------------------------------------------
+-- UI
+----------------------------------------------------------------------
+local parent = (gethui and gethui()) or CoreGui
+if not pcall(function() return parent.Name end) then parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "FD_Auto"
+gui.ResetOnSpawn = false
+gui.DisplayOrder = 999
+gui.IgnoreGuiInset = true
+gui.Parent = parent
+
+local BG, PANEL, TXT, DIM = Color3.fromRGB(17, 20, 30), Color3.fromRGB(26, 30, 44), Color3.fromRGB(226, 230, 245), Color3.fromRGB(140, 148, 175)
+local ON_C, OFF_C = Color3.fromRGB(64, 196, 120), Color3.fromRGB(70, 76, 98)
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.fromOffset(230, cfg.minimized and MIN_H or FULL_H)
+frame.Position = UDim2.new(cfg.pos[1], cfg.pos[2], cfg.pos[3], cfg.pos[4])
+frame.BackgroundColor3 = BG
+frame.BorderSizePixel = 0
+frame.ClipsDescendants = true
+frame.Active = true
+frame.Parent = gui
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+local stroke = Instance.new("UIStroke", frame)
+stroke.Color = Color3.fromRGB(58, 66, 96)
+stroke.Thickness = 1.2
+
+local head = Instance.new("Frame")
+head.Size = UDim2.new(1, 0, 0, MIN_H)
+head.BackgroundColor3 = PANEL
+head.BorderSizePixel = 0
+head.Parent = frame
+
+local title = Instance.new("TextLabel")
+title.BackgroundTransparency = 1
+title.Size = UDim2.new(1, -40, 1, 0)
+title.Position = UDim2.fromOffset(12, 0)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 12
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.TextColor3 = TXT
+title.Text = "FANTASY DICE  ·  AUTO"
+title.Parent = head
+
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.fromOffset(26, 22)
+minBtn.Position = UDim2.new(1, -30, 0, 4)
+minBtn.BackgroundTransparency = 1
+minBtn.Font = Enum.Font.GothamBold
+minBtn.TextSize = 16
+minBtn.TextColor3 = DIM
+minBtn.Text = cfg.minimized and "+" or "–"
+minBtn.Parent = head
+
+local function tween(o, t, props)
+    TweenService:Create(o, TweenInfo.new(t, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
+end
+
+-- tower mode selector (segmented control)
+do
+    local seg = Instance.new("Frame")
+    seg.Size = UDim2.new(1, -24, 0, 26)
+    seg.Position = UDim2.fromOffset(12, 38)
+    seg.BackgroundColor3 = PANEL
+    seg.BorderSizePixel = 0
+    seg.Parent = frame
+    Instance.new("UICorner", seg).CornerRadius = UDim.new(0, 8)
+
+    local buttons = {}
+    local function render()
+        for mode, b in pairs(buttons) do
+            local on = cfg.mode == mode
+            tween(b, 0.15, { BackgroundColor3 = on and ON_C or PANEL })
+            b.TextColor3 = on and Color3.new(1, 1, 1) or DIM
+        end
+    end
+    local function add(mode, text, xScale)
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(0.5, -3, 1, -6)
+        b.Position = UDim2.new(xScale, xScale == 0 and 3 or 0, 0, 3)
+        b.BorderSizePixel = 0
+        b.AutoButtonColor = false
+        b.Font = Enum.Font.GothamBold
+        b.TextSize = 11
+        b.Text = text
+        b.Parent = seg
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+        b.Activated:Connect(function()
+            if cfg.mode == mode then return end
+            cfg.mode = mode
+            buildTowers()
+            saveCfg()
+            render()
+        end)
+        buttons[mode] = b
+    end
+    add("ALL", "ALL TOWERS", 0)
+    add("INFINITY", "INFINITY", 0.5)
+    for mode, b in pairs(buttons) do
+        b.BackgroundColor3 = cfg.mode == mode and ON_C or PANEL
+        b.TextColor3 = cfg.mode == mode and Color3.new(1, 1, 1) or DIM
+    end
+end
+
+local function makeToggle(y, label, initial, onChange)
+    local row = Instance.new("Frame")
+    row.BackgroundTransparency = 1
+    row.Size = UDim2.new(1, -24, 0, 28)
+    row.Position = UDim2.fromOffset(12, y)
+    row.Parent = frame
+
+    local lbl = Instance.new("TextLabel")
+    lbl.BackgroundTransparency = 1
+    lbl.Size = UDim2.new(1, -56, 1, 0)
+    lbl.Font = Enum.Font.GothamMedium
+    lbl.TextSize = 13
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextColor3 = TXT
+    lbl.Text = label
+    lbl.Parent = row
+
+    local sw = Instance.new("TextButton")
+    sw.AutoButtonColor = false
+    sw.Text = ""
+    sw.Size = UDim2.fromOffset(44, 22)
+    sw.Position = UDim2.new(1, -44, 0.5, -11)
+    sw.BorderSizePixel = 0
+    sw.Parent = row
+    Instance.new("UICorner", sw).CornerRadius = UDim.new(1, 0)
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.fromOffset(18, 18)
+    knob.BorderSizePixel = 0
+    knob.BackgroundColor3 = Color3.new(1, 1, 1)
+    knob.Parent = sw
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+    local state = initial
+    local function render(animate)
+        local col = state and ON_C or OFF_C
+        local pos = state and UDim2.fromOffset(24, 2) or UDim2.fromOffset(2, 2)
+        if animate then
+            tween(sw, 0.16, { BackgroundColor3 = col })
+            tween(knob, 0.16, { Position = pos })
+        else
+            sw.BackgroundColor3 = col
+            knob.Position = pos
+        end
+    end
+    render(false)
+
+    sw.Activated:Connect(function()
+        state = not state
+        render(true)
+        onChange(state)
+    end)
+end
+
+makeToggle(70, "Auto Tower", cfg.tower, setTower)
+makeToggle(100, "Auto Roll", cfg.roll, setRoll)
+makeToggle(130, "Anti-AFK", cfg.afk, function(v) cfg.afk = v saveCfg() end)
+makeToggle(160, "Auto Reconnect", cfg.reconnect, function(v) cfg.reconnect = v saveCfg() end)
+
+local divider = Instance.new("Frame")
+divider.Size = UDim2.new(1, -24, 0, 1)
+divider.Position = UDim2.fromOffset(12, 196)
+divider.BackgroundColor3 = Color3.fromRGB(46, 52, 76)
+divider.BorderSizePixel = 0
+divider.Parent = frame
+
+local function statLabel(y)
+    local l = Instance.new("TextLabel")
+    l.BackgroundTransparency = 1
+    l.Size = UDim2.new(1, -24, 0, 16)
+    l.Position = UDim2.fromOffset(12, y)
+    l.Font = Enum.Font.Gotham
+    l.TextSize = 11
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.TextColor3 = DIM
+    l.TextTruncate = Enum.TextTruncate.AtEnd
+    l.Parent = frame
+    return l
+end
+local statTower, statRoll, statNote = statLabel(202), statLabel(218), statLabel(232)
+
+local minimized = cfg.minimized
+
+local function refresh()
+    statTower.Text = string.format("Tower: %s · F%d · runs %d", curName, floorNo, runs)
+    statRoll.Text = string.format("Roll: %d · rej %d", rolls, rejects)
+    local note = reconnectNote ~= "" and reconnectNote or towerNote
+    if note == "" then
+        note = cfg.afk and string.format("Anti-AFK on · %d resets", afkKicks) or ""
+    end
+    statNote.Text = note
+end
+
+minBtn.Activated:Connect(function()
+    minimized = not minimized
+    cfg.minimized = minimized
+    saveCfg()
+    minBtn.Text = minimized and "+" or "–"
+    tween(frame, 0.2, { Size = UDim2.fromOffset(230, minimized and MIN_H or FULL_H) })
+end)
+
+-- drag (mouse + touch), position saved
+do
+    local dragging, dragStart, startPos
+    track(head.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging, dragStart, startPos = true, i.Position, frame.Position
+            i.Changed:Connect(function()
+                if i.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    local p = frame.Position
+                    cfg.pos = { p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset }
+                    saveCfg()
+                end
+            end)
+        end
+    end))
+    track(UserInputService.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local d = i.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        end
+    end))
+end
+
+----------------------------------------------------------------------
+-- Start
+----------------------------------------------------------------------
+task.spawn(function()
+    -- wait for the game to finish loading
+    local pg = LocalPlayer:WaitForChild("PlayerGui")
+    local t0 = os.clock()
+    while alive and (not pg:FindFirstChild("Root") or pg:GetAttribute("LoadingActive")) and os.clock() - t0 < 30 do
+        task.wait(0.5)
+    end
+    if not alive then return end
+    task.wait(0.5)
+
+    track(Event.OnClientEvent:Connect(dispatch))
+
+    if cfg.tower then startTower() end
+
+    -- roll loop
+    task.spawn(function()
+        while alive do
+            if cfg.roll then
+                Event:FireServer("Roll")
+                task.wait(ROLL_DELAY)
+            else
+                task.wait(0.2)
+            end
+        end
+    end)
+
+    -- one low-frequency loop: watchdogs + stat refresh (no per-frame work)
+    local tick = 0
+    while alive do
+        task.wait(0.5)
+        local now = os.clock()
+        tick += 1
+        if tick % 10 == 0 then checkQuests() end
+
+        if cfg.tower then
+            if inRun and now - lastTowerEvt > 90 then
+                inRun = false            -- lost sync: resume
+                startTower()
+            elseif not inRun and not tradeBusy and now - lastStartSent > 3 then
+                startTower()             -- start was dropped / ignored
+            end
+        end
+
+        if not minimized then refresh() end
+    end
+end)
+
+refresh()
+
+if getgenv then
+    getgenv().__FD_AUTO_CLEANUP = function()
+        alive = false
+        for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+        gui:Destroy()
+    end
+end
