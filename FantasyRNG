@@ -19,6 +19,9 @@ if game.PlaceId ~= 76814530253298 then return end
               FireServer("Raid", {Op="Strike", Serial=state.Serial})    (attack, ~0.5s cooldown, not while shielding)
               FireServer("Raid", {Op="Shield", Serial=..., Held=bool})  (hold during a boss slam: state.WindowStart ~= nil)
               ("RaidNotice", msg) / ("RaidLeft") / ("RaidUnitReward", {Id, Quantity})
+      Team  : FireServer("Tower", {Op="EquipBest"})                     (state.TowerTeam = 4 unit uids)
+      Playtime: FireServer("PlaytimeReady") -> ("PlaytimeState", {Day, Seconds, At, Claimed})
+              FireServer("PlaytimeClaim", {Id=<reward index>, Day=state.Day})
 
     Auto Reconnect persistence: to keep the script running after the rejoin, either put it in your executor's
     autoexec folder, or save it as  FantasyDice_Auto.lua  in the executor workspace (it is queued on teleport),
@@ -35,6 +38,12 @@ local RAID_RETURN_AFTER_JOIN = true         -- teleport back to where you were o
 local RAID_SKIP_TOWER_TEAM = false          -- true = never pick a unit that is in your tower team
 local DEBUG = false                         -- print raid traffic / notices
 
+-- Raid dodge: the shield goes up this many seconds (+ half your ping) before the boss slam lands (state.WindowEnd).
+-- Lower = more attacks / later dodge. The shield lease on the server is about 1.2s, so keep it well under that.
+local RAID_DODGE_LEAD = 0.45
+local RAID_DODGE_AUTOTUNE = true            -- raise the lead after an unblocked slam, lower it slowly after 5 blocks in a row
+local RAID_DODGE_MIN, RAID_DODGE_MAX = 0.25, 1.0
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -44,6 +53,7 @@ local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local GuiService = game:GetService("GuiService")
 local CoreGui = game:GetService("CoreGui")
+local Stats = game:GetService("Stats")
 
 local LocalPlayer = Players.LocalPlayer
 local FD = ReplicatedStorage:WaitForChild("FantasyDice")
@@ -147,6 +157,10 @@ local raidAttempts, raidNext, lobbySeen, lastWatch = 0, 0, 0, 0
 local raidJoins, raidWins, raidLosses, raidStrikes = 0, 0, 0, 0
 local raidNote = ""
 local shieldHeld, lastShield, nextStrike = false, 0, 0
+local dodgeLead = RAID_DODGE_LEAD
+local dodgeBlocks, dodgeMisses, blockStreak = 0, 0, 0
+local lastReceived, lastFull = nil, 0
+local pingCache, pingAt = 0.1, 0
 
 -- tower
 local allTowers = {}
@@ -228,12 +242,48 @@ local function advance()
     if #towers > 1 then tIdx = tIdx % #towers + 1 end
 end
 
-local function startTower()
+-- Auto equip best: EquipBest is sent right before a tower start when the unit count changed (new rolls),
+-- the team has an empty slot, or every 5 minutes (trait/grade rerolls change unit strength).
+local lastEquip, lastInvCount, equips = -1000, -1, 0
+local startPending = false
+
+local function inventoryCount()
+    local n = 0
+    for _, c in pairs(playerState.Inventory or {}) do
+        if type(c) == "number" then n += c end
+    end
+    return n
+end
+
+local function shouldEquip()
+    if next(playerState) == nil then return false end
+    local now = os.clock()
+    if now - lastEquip < 20 then return false end
+    if now - lastEquip > 300 then return true end
+    if inventoryCount() ~= lastInvCount then return true end
+    local team = playerState.TowerTeam
+    for i = 1, 4 do
+        if type(team) ~= "table" or team[i] == nil then return true end
+    end
+    return false
+end
+
+local function equipBest()
+    lastEquip = os.clock()
+    lastInvCount = inventoryCount()
+    equips += 1
+    Event:FireServer("Tower", { Op = "EquipBest" })
+end
+
+local startTower
+
+local function fireStart()
+    startPending = false
     if not (alive and cfg.tower) or inRun or tradeBusy or raidBusy or raidJoining then return end
     local name = pickTower()
     if not name then
         towerNote = "all towers locked, retrying"
-        task.delay(5, startTower)
+        task.delay(5, function() startTower() end)
         return
     end
     towerNote = ""
@@ -246,6 +296,18 @@ local function startTower()
         Difficulty = TOWER_DIFFICULTY,
         Speed = towerSpeed(),
     })
+end
+
+startTower = function()
+    if startPending or not (alive and cfg.tower) or inRun or tradeBusy or raidBusy or raidJoining then return end
+    if shouldEquip() then -- part of Auto Tower (no separate toggle)
+        equipBest()
+        startPending = true
+        lastStartSent = os.clock()
+        task.delay(0.35, fireStart) -- let the server apply the team before starting
+        return
+    end
+    fireStart()
 end
 
 local function onTowerEvent(d)
@@ -348,6 +410,30 @@ local function onRaidState(s)
     local was = raidBusy
     raidBusy = me ~= nil and (s.Phase == "Battle" or s.Phase == "Results")
 
+    -- dodge auto-tune: did the last slam get blocked?
+    if me and s.Phase == "Battle" then
+        local rec, full = me.Received or 0, me.FullBlocks or 0
+        if lastReceived ~= nil then
+            local gotHit = rec > lastReceived
+            local blocked = full > lastFull or (gotHit and me.LastBlocked == true)
+            if blocked then
+                dodgeBlocks += 1
+                blockStreak += 1
+                if RAID_DODGE_AUTOTUNE and blockStreak >= 5 then
+                    dodgeLead = math.max(RAID_DODGE_MIN, dodgeLead - 0.05)
+                    blockStreak = 0
+                end
+            elseif gotHit then
+                dodgeMisses += 1
+                blockStreak = 0
+                if RAID_DODGE_AUTOTUNE then dodgeLead = math.min(RAID_DODGE_MAX, dodgeLead + 0.15) end
+            end
+        end
+        lastReceived, lastFull = rec, full
+    else
+        lastReceived, lastFull = nil, 0
+    end
+
     if s.Phase == "Results" and me and not (prev and prev.Phase == "Results") then
         if (s.Health or 1) <= 0 then raidWins += 1 else raidLosses += 1 end
     end
@@ -374,6 +460,16 @@ local function sendStrike()
     nextStrike = os.clock() + ATTACK_CD
 end
 
+local function currentPing()
+    local now = os.clock()
+    if now - pingAt > 1 then
+        pingAt = now
+        local ok, v = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+        if ok and type(v) == "number" and v > 0 then pingCache = v / 1000 end -- round trip, seconds
+    end
+    return pingCache
+end
+
 local function raidTick()
     local now = os.clock()
     if raidBusy and now - raidStateAt > 8 then -- lost the raid feed, release the tower
@@ -393,15 +489,29 @@ local function raidTick()
         return
     end
 
+    -- the slam lands at s.WindowEnd (server time): keep attacking during the countdown and
+    -- only raise the shield in the last `lead` seconds
     local serverNow = workspace:GetServerTimeNow()
-    local slam = s.WindowStart ~= nil and (s.WindowEnd == nil or serverNow < s.WindowEnd + 0.5)
+    local lead = dodgeLead + currentPing() / 2
+    local untilHit = s.WindowEnd and (s.WindowEnd - serverNow) or nil
+    local slam
+    if s.WindowStart == nil then
+        slam = false
+    elseif untilHit == nil then
+        slam = true -- window with unknown end: shield for safety
+    else
+        slam = untilHit <= lead and untilHit > -0.5
+    end
+
     if slam then
         if not shieldHeld or now - lastShield > 0.35 then sendShield(true) end -- lease is ~1.2s, renew like the real client
     elseif shieldHeld then
         sendShield(false)
         nextStrike = now + ATTACK_RECOVERY
     elseif now >= nextStrike then
-        sendStrike()
+        -- stop swinging just before the dodge so the attack recovery is over when the shield goes up
+        local nearHit = s.WindowStart ~= nil and untilHit ~= nil and untilHit <= lead + ATTACK_RECOVERY + 0.05 and untilHit > -0.5
+        if not nearHit then sendStrike() end
     end
 end
 
@@ -548,6 +658,72 @@ local function raidManage()
 end
 
 ----------------------------------------------------------------------
+-- Auto claim playtime rewards (native, no UI)
+--   FireServer("PlaytimeReady") -> ("PlaytimeState", {Day, Seconds, At, Claimed = {["1"]=true,...}})
+--   FireServer("PlaytimeClaim", {Id = rewardIndex, Day = state.Day})
+--   Seconds is capped at 3600 per UTC day; progress now = Seconds + (serverNow - At), same formula as the game UI.
+----------------------------------------------------------------------
+local PT_REWARDS = { 300, 600, 900, 1800, 2700, 3600 } -- fallback thresholds (seconds), read from the game module when possible
+do
+    local mod = try(function()
+        for _, name in ipairs({ "PlaytimeRewards", "PlayTimeRewards", "PlaytimeRewardClient", "PlayTimeRewardClient" }) do
+            local inst = FD:FindFirstChild(name)
+            if inst and inst:IsA("ModuleScript") then
+                local m = require(inst)
+                if type(m) == "table" and type(m.Rewards) == "table" then return m end
+            end
+        end
+    end)
+    if mod then
+        local t = {}
+        for k, r in ipairs(mod.Rewards) do t[k] = r.Seconds end
+        if #t > 0 then PT_REWARDS = t end
+    end
+end
+
+local ptState = nil
+local ptReadyAt = -100
+local ptPending = {}
+
+local function ptClaimedCount()
+    local n = 0
+    for k = 1, #PT_REWARDS do
+        if ptState and ptState.Claimed and ptState.Claimed[tostring(k)] then n += 1 end
+    end
+    return n
+end
+
+local function playtimeTick()
+    if not alive then return end -- native feature: always on, no toggle
+    local now = os.clock()
+    local function ready(gap)
+        if now - ptReadyAt > gap then
+            ptReadyAt = now
+            Event:FireServer("PlaytimeReady")
+        end
+    end
+
+    if not ptState then ready(5) return end
+    local serverNow = workspace:GetServerTimeNow()
+    if math.floor(serverNow / 86400) ~= ptState.Day then ready(5) return end -- new UTC day: fetch fresh state
+
+    local claimed = ptState.Claimed or {}
+    local secs = math.min(3600, (ptState.Seconds or 0) + math.max(0, serverNow - (ptState.At or serverNow)))
+    local anyLeft = false
+    for k, need in ipairs(PT_REWARDS) do
+        if not claimed[tostring(k)] then
+            anyLeft = true
+            if secs >= need + 1 and now - (ptPending[k] or -100) > 3 then
+                ptPending[k] = now
+                Event:FireServer("PlaytimeClaim", { Id = k, Day = ptState.Day })
+                return -- one claim per tick; the new state triggers the next
+            end
+        end
+    end
+    if anyLeft then ready(30) end -- keep the server-side progress estimate fresh
+end
+
+----------------------------------------------------------------------
 -- Remote dispatcher
 ----------------------------------------------------------------------
 local function dispatch(kind, data)
@@ -578,6 +754,8 @@ local function dispatch(kind, data)
         tradeBusy = false
         towerNote = ""
         startTower()
+    elseif kind == "PlaytimeState" then
+        if type(data) == "table" then ptState = data end
     elseif kind == "RaidState" then
         onRaidState(data)
     elseif kind == "RaidNotice" then
@@ -868,16 +1046,19 @@ local minimized = cfg.minimized
 
 local function refresh()
     statTower.Text = string.format("%s · %s x%d · F%d · %d runs", curName, curDiff:sub(1, 4), curSpeed, floorNo, runs)
-    statRoll.Text = string.format("Roll: %d · rej %d", rolls, rejects)
+    statRoll.Text = string.format("Roll: %d · rej %d · PT %d/%d", rolls, rejects, ptClaimedCount(), #PT_REWARDS)
 
     local status
     if raidBusy then status = "fighting"
     elseif raidJoining then status = "joining"
     elseif raidJoined or LocalPlayer:GetAttribute("RaidQueuedUnit") ~= nil then status = "queued"
     else status = "waiting" end
-    statRaid.Text = string.format("Raid: %s · %d joins · W/L %d/%d · %d hits", status, raidJoins, raidWins, raidLosses, raidStrikes)
+    statRaid.Text = string.format("Raid: %s · W/L %d/%d · %d hits · blk %d/%d", status, raidWins, raidLosses, raidStrikes, dodgeBlocks, dodgeBlocks + dodgeMisses)
 
     local note = reconnectNote ~= "" and reconnectNote or raidNote ~= "" and raidNote or towerNote
+    if note == "" and raidBusy then
+        note = string.format("shield lead %.2fs (+ping/2)", dodgeLead)
+    end
     if note == "" then
         note = cfg.afk and string.format("Anti-AFK on · %d resets", afkKicks) or ""
     end
@@ -964,6 +1145,7 @@ task.spawn(function()
 
     track(Event.OnClientEvent:Connect(dispatch))
     Event:FireServer("Raid", { Op = "Watch" })
+    Event:FireServer("PlaytimeReady")
 
     if cfg.tower then startTower() end
 
@@ -996,6 +1178,7 @@ task.spawn(function()
         tick += 1
         if tick % 10 == 0 then checkQuests() end
         pcall(raidManage)
+        pcall(playtimeTick)
 
         if cfg.tower and not (raidBusy or raidJoining) then
             if inRun and now - lastTowerEvt > 90 then
