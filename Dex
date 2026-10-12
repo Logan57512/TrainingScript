@@ -1,38 +1,5 @@
 --[[
-MIT License
-
-Copyright (c) 2025 Chillz
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-]]
-
--- Dex++ with Luacid. Run this entire file in your executor.
--- Optional: enter your own key below locally. Never share a file containing it.
--- Decompilation sends selected script bytecode to https://api.luacid.dev.
-local LuacidConfig = {
-    APIKey = "", -- Empty uses the keyless tier (512 KB/file, 60 requests/min/IP).
-    LoadPlugins = false, -- Explicit opt-in for existing dex/plugins files.
-}
-
---[[
-	Dex++
+	Dex++ — Luacid Edition
 	Version 3.0
 	
 	Developed by Chillz
@@ -78,6 +45,31 @@ end
 
 local oldgame = cloneref(game)
 local game = cloneref(workspace.Parent)
+
+--[[
+MIT License
+
+Copyright (c) 2025 Chillz
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+]]
 
 
 local EmbeddedModules = {
@@ -10766,93 +10758,120 @@ end
 return {InitDeps = initDeps, InitAfterMain = initAfterMain, Main = main}
 end,
 ["Luacid"] = function()
--- Luacid HTTP adapter. Only bytecode and an optional API key leave the client.
--- Dependencies are injected so the request contract can be tested without Roblox.
-return function(deps, config)
-    local busy = false
-    local nextRequest = 0
-    local function failure(message)
-        -- Prefix every line: API errors are displayed as comments, never executed.
-        return "-- Luacid: " .. tostring(message):gsub("\r", ""):gsub("\n", "\n-- ")
-    end
-    local function perform(scriptInstance)
-        if type(deps.bytecode) ~= "function" then
-            return failure("getscriptbytecode is unavailable in this executor.")
-        end
-        if type(deps.request) ~= "function" then
-            return failure("HTTP request is unavailable in this executor.")
-        end
-        local ok, bytecode = pcall(deps.bytecode, scriptInstance)
-        if not ok or type(bytecode) ~= "string" or #bytecode == 0 then
-            return failure("Could not read bytecode from this script.")
-        end
-        local key = config.APIKey
-        if type(key) ~= "string" then key = "" end
-        key = key:match("^%s*(.-)%s*$")
-        if key == "" and #bytecode > 512 * 1024 then
-            return failure("File exceeds the keyless 512 KB limit. Set LuacidConfig.APIKey locally.")
-        end
-        local headers = { ["Content-Type"] = "application/octet-stream" }
-        if key ~= "" then headers.Authorization = "Bearer " .. key end
-        local lastStatus
-        for attempt = 1, 3 do
-            local delay = nextRequest - deps.clock()
-            if delay > 0 then deps.wait(delay) end
-            -- Space requests conservatively below 60/minute, including retries.
-            nextRequest = deps.clock() + 1.1
-            local sent, response = pcall(deps.request, {
-                Url = "https://api.luacid.dev/decompile?type_annotations=functions&generated_names=readable&indent=tab",
-                Method = "POST",
-                Headers = headers,
-                Body = bytecode,
-            })
-            if not sent then
-                -- Do not echo transport exceptions, which may contain auth headers.
-                return failure("Network request failed. Check your connection and executor HTTP support.")
-            end
-            if type(response) ~= "table" then return failure("Invalid HTTP response.") end
-            local status = tonumber(response.StatusCode or response.Status)
-            lastStatus = status
-            if status == 200 then
-                if type(response.Body) ~= "string" then return failure("Response has no source text.") end
-                return response.Body
-            end
-            local retryAfter = 0
-            if type(response.Headers) == "table" then
-                for name, value in pairs(response.Headers) do
-                    if tostring(name):lower() == "retry-after" then retryAfter = tonumber(value) or 0 end
-                end
-            end
-            if status == 429 then
-                nextRequest = math.max(nextRequest, deps.clock() + math.max(60, retryAfter))
-            end
-            local retryable = status == 429 or (status and status >= 500 and status <= 599)
-            if not retryable or attempt == 3 then break end
-            -- Long cooldowns are reported rather than keeping the viewer waiting.
-            if retryAfter > 10 or status == 429 then
-                return failure("Rate limited (HTTP " .. tostring(status) .. "). Wait at least " .. tostring(math.ceil(nextRequest - deps.clock())) .. " seconds before trying again.")
-            end
-            nextRequest = math.max(nextRequest, deps.clock() + math.max(2 ^ attempt, retryAfter))
-        end
-        local messages = {
-            [400] = "Bytecode or request was rejected.",
-            [403] = "API key is invalid, expired, disabled, or blocked.",
-            [413] = "Bytecode exceeds your tier's file size limit.",
-            [422] = "Luacid could not decompile this bytecode.",
-            [429] = "Rate limit reached. Wait before trying again.",
-        }
-        return failure("HTTP " .. tostring(lastStatus or "unknown") .. ": " .. (messages[lastStatus] or "API request failed. Try again later."))
-    end
-    return function(scriptInstance)
-        -- Calls are serialized to avoid concurrent viewers exceeding the quota.
-        while busy do deps.wait(0.05) end
-        busy = true
-        local ok, result = pcall(perform, scriptInstance)
-        busy = false
-        if not ok then return failure("Adapter failed. Check the executor's supported APIs.") end
-        return result
-    end
+-- Luacid HTTP adapter. Only bytecode and explicitly configured options/key leave Dex.
+-- API contract: https://luacid.dev/docs/decompile
+local dependencies
+
+local function new(env, httpService, config, scheduler, clock)
+	local endpoint = "https://api.luacid.dev/decompile"
+	local nextRequest = 0
+	local defaults = {type_annotations = "functions", generated_names = "readable", indent = "tab"}
+
+	local function failure(message)
+		local text = tostring(message):gsub("\r\n?", "\n")
+		return "-- Luacid: " .. text:gsub("\n", "\n-- ")
+	end
+
+	local function available()
+		return type(env.getscriptbytecode) == "function" and type(env.request) == "function"
+	end
+
+	local function decompile(scriptInstance)
+		if not available() then
+			return failure("requires getscriptbytecode and an HTTP request function.")
+		end
+		local ok, bytecode = pcall(env.getscriptbytecode, scriptInstance)
+		if not ok then
+			return failure("could not read script bytecode: " .. tostring(bytecode))
+		end
+		if type(bytecode) ~= "string" or #bytecode == 0 then
+			return failure("getscriptbytecode returned no bytecode.")
+		end
+
+		local key = config.DecompilerKey
+		if key ~= nil and type(key) ~= "string" then
+			return failure("_G.DecompilerKey must be a string or nil.")
+		end
+		if (key == nil or key == "") and #bytecode > 524288 then
+			return failure("bytecode exceeds the keyless 512 KiB limit. Set _G.DecompilerKey for a higher tier.")
+		end
+		local options = config.DecompilerOptions
+		if options == nil then options = defaults end
+		if type(options) ~= "table" then
+			return failure("_G.DecompilerOptions must be a table.")
+		end
+		local fields = {}
+		for name, value in pairs(options) do
+			if type(name) ~= "string" or (type(value) ~= "string" and type(value) ~= "boolean" and type(value) ~= "number") then
+				return failure("decompiler options require string names and string, boolean or number values.")
+			end
+			fields[#fields + 1] = httpService:UrlEncode(name) .. "=" .. httpService:UrlEncode(tostring(value))
+		end
+		table.sort(fields)
+		local url = endpoint .. (#fields > 0 and ("?" .. table.concat(fields, "&")) or "")
+		local headers = {["Content-Type"] = "application/octet-stream"}
+		if key and key ~= "" then headers.Authorization = "Bearer " .. key end
+
+		-- Reserve slots before yielding, so concurrent viewers share the keyless rate limit.
+		local function reserveSlot()
+			local now = clock()
+			local slot = math.max(now, nextRequest)
+			nextRequest = slot + 1.05
+			if slot > now then scheduler.wait(slot - now) end
+		end
+
+		for attempt = 0, 3 do
+			reserveSlot()
+			local sent, response = pcall(env.request, {
+				Url = url, Method = "POST", Headers = headers, Body = bytecode,
+			})
+			if not sent then
+				-- Do not echo transport exceptions: some executors include request headers.
+				return failure("HTTP request failed. Check your connection and executor HTTP support.")
+			end
+			if type(response) ~= "table" then return failure("invalid HTTP response.") end
+			local status = tonumber(response.StatusCode or response.Status)
+			if status == 200 then
+				if type(response.Body) ~= "string" or response.Body == "" then
+					return failure("the API returned an empty or invalid source body.")
+				end
+				return response.Body
+			end
+			local retryable = status == 429 or (status and status >= 500 and status <= 599)
+			local delay = 2 ^ attempt
+			if status == 429 then
+				delay = 60
+				if type(response.Headers) == "table" then
+					for name, value in pairs(response.Headers) do
+						if string.lower(tostring(name)) == "retry-after" then
+							delay = math.max(1, tonumber(value) or 60)
+						end
+					end
+				end
+			end
+			if not retryable or attempt == 3 or delay > 60 then
+				local detail = type(response.Body) == "string" and response.Body:sub(1, 2000) or "No error body."
+				if key and key ~= "" then
+					-- Literal replacement, including keys containing Lua pattern characters.
+					local pattern = key:gsub("(%W)", "%%%1")
+					detail = detail:gsub(pattern, function() return "[redacted]" end)
+				end
+				return failure("HTTP " .. tostring(status or "unknown") .. "\n" .. detail)
+			end
+			scheduler.wait(delay)
+		end
+	end
+
+	return {decompile = decompile, available = available}
 end
+
+return {
+	new = new,
+	InitDeps = function(data) dependencies = data end,
+	Main = function()
+		return new(dependencies.env, dependencies.service.HttpService, _G, task, os.clock)
+	end,
+}
 
 end,
 ["ModelViewer"] = function()
@@ -13749,7 +13768,7 @@ local function main()
 				if (scr.ClassName == "Script" and (scr.RunContext == Enum.RunContext.Legacy or scr.RunContext == Enum.RunContext.Server)) or not scr:IsA("LocalScript") then
 					source = source .. "-- Reason: The script is not running on client. (attempt to decompile ServerScript or 'Script' with RunContext Server)\n"
 				elseif not env.isdecompile() then
-					source = source .. "-- Reason: Your executor does not support decompiler. (missing 'decompile' function and 'getscriptbytecode' function as fallback)\n"
+					source = source .. "-- Reason: Your executor does not support decompiler. (Luacid requires 'getscriptbytecode' and an HTTP request function)\n"
 				else
 					source = source .. "-- Reason: Unknown Error.\n"
 				end
@@ -14139,11 +14158,13 @@ local function main()
 			Settings.ScriptViewer.ShowMoreInfo = showMoreInfo.Toggled
 		end)
 		
-		AddSeperator("Luacid Decompiler")
-		AddText("Selected script bytecode is sent to api.luacid.dev over HTTPS.")
-		AddText("Requires getscriptbytecode and HTTP request support.")
-		AddText("API key is optional. Configure it at the top of dex-luacid.lua.")
-
+		AddSeperator("Decompiler: Luacid")
+		AddText("Luacid is used for viewing and saving individual scripts.")
+		AddText("Requires getscriptbytecode and an HTTP request function.")
+		AddText("Bytecode is sent to api.luacid.dev for decompilation.")
+		AddText("Optional key: _G.DecompilerKey (not saved in Dex settings).")
+		AddText("Formatting options: _G.DecompilerOptions.")
+		
 		-- Save buttons below
 		local BackgroundreloadButton = Lib.Frame.new()
 		BackgroundreloadButton.Gui.Parent = window.GuiElems.Content
@@ -14308,11 +14329,7 @@ DefaultSettings = (function()
 			TitleOnMiddle = false,
 			Transparency = .2
 		},
-		Decompiler = {
-			DecompilerFallback = "Luacid",
-			PreferDecompilerFallback = true,
-			ShinyDecompilerPort = 3000,
-		},
+
 		
 		RemoteBlockWriteAttribute = false, -- writes attribute to remote instance if remote is blocked/unblocked
 		ClassIcon = "NewDark",
@@ -14368,7 +14385,7 @@ Main = (function()
 	Main.Elevated = false
 	Main.AllowDraggableOnMobile = true
 	Main.MissingEnv = {}
-	Main.Version = "3.0 + Luacid"
+	Main.Version = "3.0"
 	Main.Mouse = plr:GetMouse()
 	Main.AppControls = {}
 	Main.Apps = Apps
@@ -14673,12 +14690,9 @@ Main = (function()
 				RepoURL = "https://raw.githubusercontent.com/luau/SynSaveInstance/main/",
 				SSI = "saveinstance",
 			}
-			local synsaveinstance
+			local synsaveinstance = loadstring(oldgame:HttpGet(Params.RepoURL .. Params.SSI .. ".luau", true), Params.SSI)()
 		
 			local function wrappedsaveinstance(obj, filepath, options)
-				if not synsaveinstance then
-					synsaveinstance = loadstring(oldgame:HttpGet(Params.RepoURL .. Params.SSI .. ".luau", true), Params.SSI)()
-				end
 				options["FilePath"] = filepath
 				--options["ReadMe"] = false
 				options["Object"] = obj
@@ -14726,27 +14740,11 @@ Main = (function()
 		end
 		env.request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
 		
-		env.isdecompile = function()
-			return typeof(decompile) == "function" or typeof(getscriptbytecode) == "function" or false
-		end
+		local luacid = Main.LoadModule("Luacid")
+		env.decompile = luacid.decompile
+		env.isdecompile = luacid.available
+		env.isdecompilefallback = luacid.available
 		
-		env.isdecompilefallback = function()
-			return typeof(decompile) ~= "function" or typeof(getscriptbytecode) == "function" or false
-		end
-		
-		
-		-- Luacid-only decompiler; does not modify the executor's global decompile.
-		local createLuacid = EmbeddedModules.Luacid()
-		env.decompile = createLuacid({
-			bytecode = env.getscriptbytecode,
-			request = env.request,
-			wait = task.wait,
-			clock = os.clock,
-		}, LuacidConfig)
-		env.isdecompile = function()
-			return type(env.getscriptbytecode) == "function" and type(env.request) == "function"
-		end
-		env.isdecompilefallback = env.isdecompile
 
 		if identifyexecutor then
 			Main.Executor = identifyexecutor()
@@ -14870,7 +14868,7 @@ Main = (function()
 	--warn(Main.ExportSettings())
 
 	Main.LoadSettings = function()
-		local s, data = pcall(env.readfile or error, "DexLuacidSettings.json")
+		local s, data = pcall(env.readfile or error, "DexPlusPlusSettings.json")
 		if s and data and data ~= "" then
 			
 			local s, decoded = pcall(service.HttpService.JSONDecode, service.HttpService, data)
@@ -15619,7 +15617,7 @@ Main = (function()
 
 	Main.SaveCurrentSettings = function()
 		if writefile then
-			writefile("DexLuacidSettings.json", Main.ExportSettings())
+			writefile("DexPlusPlusSettings.json", Main.ExportSettings())
 		end
 	end
 
@@ -15631,7 +15629,7 @@ Main = (function()
 		Main.Elevated = pcall(function() local a = game:GetService("CoreGui"):GetFullName() end)
 		
 		-- saves new settings if does not exist
-		if isfile and not isfile("DexLuacidSettings.json") then
+		if isfile and not isfile("DexPlusPlusSettings.json") then
 			Main.SaveCurrentSettings()
 		end
 		
@@ -15728,7 +15726,7 @@ Main = (function()
 		--SecretServicePanel.Init()
 		
 		
-		if LuacidConfig.LoadPlugins == true and env.readfile and listfiles then
+		if env.readfile and listfiles then
 			if #listfiles("dex/plugins") > 0 then
 				intro.SetProgress("Loading Plugin Files",0.8)
 				for _, pluginDir in pairs(listfiles("dex/plugins")) do
