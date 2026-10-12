@@ -1,6 +1,6 @@
 --[[
 	Dex++ — Luacid Edition
-	Version 3.0
+	Version 3.0 — Luacid revision 2
 	
 	Developed by Chillz
 	
@@ -10,41 +10,11 @@
 local selection
 local nodes = {}
 
-cloneref = cloneref or function(ref)
-	if not getreg then return ref end
-	
-	local InstanceList
-	
-	local a = Instance.new("Part")
-	for _, c in pairs(getreg()) do
-		if type(c) == "table" and #c then
-			if rawget(c, "__mode") == "kv" then
-				for d, e in pairs(c) do
-					if e == a then
-						InstanceList = c
-						break
-					end
-				end
-			end
-		end
-	end
-	local f = {}
-	function f.invalidate(g)
-		if not InstanceList then
-			return
-		end
-		for b, c in pairs(InstanceList) do
-			if c == g then
-				InstanceList[b] = nil
-				return g
-			end
-		end
-	end
-	return f.invalidate
-end
-
-local oldgame = cloneref(game)
-local game = cloneref(workspace.Parent)
+-- Keep the canonical DataModel reference for Explorer's instance-keyed tables.
+-- A cloned reference can compare equal while still being a different table key.
+local game = game
+local oldgame = game
+local cloneref = cloneref or function(ref) return ref end
 
 --[[
 MIT License
@@ -901,6 +871,36 @@ local function initAfterMain()
 	ScriptViewer = Apps.ScriptViewer
 	ModelViewer = Apps.ModelViewer
 	Notebook = Apps.Notebook
+end
+
+-- Walk children from their known parent rather than joining cloned references
+-- or relying on GetDescendants returning parents before their descendants.
+local function buildTree(root, nodeMap)
+	local rootNode = nodeMap[root] or {Obj = root}
+	nodeMap[root] = rootNode
+	local pending, visited = {rootNode}, {}
+	local unreadable = 0
+	while #pending > 0 do
+		local parent = table.remove(pending)
+		if visited[parent.Obj] then continue end
+		visited[parent.Obj] = true
+		local ok, children = pcall(function() return parent.Obj:GetChildren() end)
+		if not ok or type(children) ~= "table" then
+			unreadable += 1
+			continue
+		end
+		for _, child in ipairs(children) do
+			local node = nodeMap[child]
+			if not node then
+				node = {Obj = child, Parent = parent}
+				nodeMap[child] = node
+				parent[#parent + 1] = node
+				parent.Sorted = nil
+			end
+			pending[#pending + 1] = node
+		end
+	end
+	return rootNode, unreadable
 end
 
 local function main()
@@ -3440,39 +3440,16 @@ return search]==]
 
 		Explorer.SetupConnections()
 
-		local insts = getDescendants(game)
-		if Main.Elevated then
-			for i = 1,#insts do
-				local obj = insts[i]
-				local par = nodes[ffa(obj,"Instance")]
-				if not par then continue end
-				local newNode = {
-					Obj = obj,
-					Parent = par,
-				}
-				nodes[obj] = newNode
-				par[#par+1] = newNode
-			end
-		else
-			for i = 1,#insts do
-				local obj = insts[i]
-				local s,parObj = pcall(ffa,obj,"Instance")
-				local par = nodes[parObj]
-				if not par then continue end
-				local newNode = {
-					Obj = obj,
-					Parent = par,
-				}
-				nodes[obj] = newNode
-				par[#par+1] = newNode
-			end
+		local rootNode, unreadable = buildTree(game, nodes)
+		if #rootNode == 0 then
+			warn("Dex++: Explorer could not enumerate DataModel children (unreadable branches: " .. unreadable .. ").")
 		end
 	end
 
 	return Explorer
 end
 
-return {InitDeps = initDeps, InitAfterMain = initAfterMain, Main = main}
+return {InitDeps = initDeps, InitAfterMain = initAfterMain, Main = main, BuildTree = buildTree}
 
 end,
 ["Lib"] = function()
@@ -14208,41 +14185,6 @@ else
 end
 end,
 }
-local oldgame = oldgame or game
-
-cloneref = cloneref or function(ref)
-	if not getreg then return ref end
-	
-	local InstanceList
-	
-	local a = Instance.new("Part")
-	for _, c in pairs(getreg()) do
-		if type(c) == "table" and #c then
-			if rawget(c, "__mode") == "kvs" then
-				for d, e in pairs(c) do
-					if e == a then
-						InstanceList = c
-						break
-					end
-				end
-			end
-		end
-	end
-	local f = {}
-	function f.invalidate(g)
-		if not InstanceList then
-			return
-		end
-		for b, c in pairs(InstanceList) do
-			if c == g then
-				InstanceList[b] = nil
-				return g
-			end
-		end
-	end
-	return f.invalidate
-end
-
 local isFsSupported = readfile and writefile and isfile and isfolder and listfiles and delfile and delfolder
 
 -- Main vars
