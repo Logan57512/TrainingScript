@@ -1,6 +1,6 @@
 --[[
 	Dex++ — Offline Edition
-	Version 3.0 — Offline revision 1
+	Version 3.0 — Offline revision 2
 	
 	Developed by Chillz
 	
@@ -10739,7 +10739,9 @@ local function new(env, config, scheduler, clock)
         local settings = config.DexOfflineOptions
         if settings ~= nil and type(settings) ~= "table" then error("_G.DexOfflineOptions must be a table", 0) end
         local result = {
-            header = false, strict_trailing = true, vector_constructor = "Vector3.new",
+            -- The core permits an opaque 24-byte trailer after a fully parsed chunk.
+            -- Keep all other trailing lengths rejected unless explicitly configured.
+            header = false, strict_trailing = false, allow_trailing = false, vector_constructor = "Vector3.new",
             max_bytes = 4 * 1024 * 1024, max_output_bytes = 8 * 1024 * 1024,
             max_work = 100000000, max_nodes = 1000000, max_depth = 100,
             max_expression_depth = 200, max_instructions = 200000,
@@ -10768,7 +10770,9 @@ local function new(env, config, scheduler, clock)
         local ok, source, info = pcall(function() return engine.decompile(bytes, options()) end)
         if not ok then return failure(source) end
         local heading = string.format("-- Offline LuaUnVeil %s | bytecode %d | opcode multiplier %d\n", engine.version, info.version, info.opcode_multiplier)
-        for _, warning in ipairs(info.warnings or {}) do heading ..= failure(warning) .. "\n" end
+        for _, warning in ipairs(info.warnings or {}) do
+            heading ..= "-- Decompiler note: " .. tostring(warning):gsub("\r\n?", "\n"):gsub("\n", "\n-- ") .. "\n"
+        end
         return heading .. source, info
     end
     local function available() return type(env.getscriptbytecode) == "function" end
